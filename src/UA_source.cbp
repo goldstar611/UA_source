@@ -13,6 +13,7 @@
 				<Option type="1" />
 				<Option compiler="gcc" />
 				<Compiler>
+				<Add option="-std=c++11" />
 					<Add option="-g" />
 					<Add option="-O0" />
 				</Compiler>
@@ -33,6 +34,7 @@
 				<Option type="1" />
 				<Option compiler="gcc" />
 				<Compiler>
+				<Add option="-std=c++11" />
 					<Add option="-O2" />
 				</Compiler>
 				<Linker>
@@ -48,6 +50,7 @@
 			</Target>
 		</Build>
 		<Compiler>
+		<Add option="-std=c++11" />
 			<Add option="-Wall" />
 			<Add option="-fexceptions" />
 			<Add option="-mno-ms-bitfields" />

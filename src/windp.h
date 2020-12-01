@@ -89,8 +89,8 @@ struct windp_arg87
 
 
 
-struct NC_STACK_ypaworld;
-struct UserData;
+class NC_STACK_ypaworld;
+class UserData;
 
 void yw_HandleNetMsg(NC_STACK_ypaworld *yw);
 
@@ -116,7 +116,7 @@ public:
 extern netgamelst netgame_wnd;
 
 void sb_0x451034__sub6(NC_STACK_ypaworld *yw);
-void ypaworld_func64__sub7__sub5(NC_STACK_ypaworld *yw, struC5 *inpt);
+void ypaworld_func64__sub7__sub5(NC_STACK_ypaworld *yw, InputState *inpt);
 
 
 
@@ -126,12 +126,8 @@ class NC_STACK_windp: public NC_STACK_network
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func3(IDVList &stak);
 
-    virtual size_t EnumProviders();
-    virtual size_t GetProviderName(windp_getNameMsg *arg);
-    virtual size_t SelectProvider(const char *provName);
-    virtual size_t GetProviderData(ProviderStruct **pconn);
+    virtual size_t SetMode(bool hosting);
 
     virtual size_t EnumSessions(IDVPair *stak);
     virtual size_t GetSessionName(windp_getNameMsg *arg);
@@ -159,19 +155,18 @@ public:
     virtual bool GetRemoteStart(windp_arg87 *arg);
 
     virtual size_t GetLocalName(IDVPair *stak);
-    virtual void   SetVersion(const char *arg);
-    virtual size_t GetProvType(IDVPair *stak);
+    virtual void   SetVersion(const std::string &arg);
+    virtual size_t GetProvType();
 
     virtual size_t GetStats(int *);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_windp() {
         //memset(&wdp_intern, 0, sizeof(wdp_intern));
     };
     virtual ~NC_STACK_windp() {};
-
-    virtual const char * getClassName() {
-        return "windp.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -209,10 +204,8 @@ protected:
 public:
     static const Nucleus::ClassDescr description;
 
-
-    int numProviders;
     ProviderStruct providers[MAX_PROVIDERS];
-    int providerID;
+
     int connType;
 
     ZNDNet::ZNDClient *zcli;

@@ -10,17 +10,15 @@ public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
     virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual void User_layer(update_msg *arg);
     virtual int AlignVehicleAI(float dtime, vec3d *pNormal);
     virtual int AlignVehicleUser(float dtime, const vec3d &oldDir);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ypacar();
     virtual ~NC_STACK_ypacar() {};
 
-    virtual const char * getClassName() {
-        return "ypacar.class";
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

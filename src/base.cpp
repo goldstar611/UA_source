@@ -167,52 +167,52 @@ size_t NC_STACK_base::func0(IDVList &stak)
     flags |= FLAG_RENDERALL;
     transform.flags |= TFEngine::TForm3D::FLAG_FOLLOW_PARENT;
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case ATT_SKELET:
-                setBASE_skeleton((NC_STACK_skeleton *)val.value.p_data);
+                setBASE_skeleton(val.Get<NC_STACK_skeleton *>());
                 break;
 
             case ATT_ADE:
-                setBASE_ADE((NC_STACK_ade *)val.value.p_data);
+                setBASE_ADE(val.Get<NC_STACK_ade *>());
                 break;
 
             case ATT_PARENTFOLLOW:
-                setBASE_parentFollow(val.value.i_data);
+                setBASE_parentFollow(val.Get<int32_t>());
                 break;
 
             case ATT_VISLIMIT:
-                setBASE_visLimit(val.value.i_data);
+                setBASE_visLimit(val.Get<int32_t>());
                 break;
 
             case ATT_AMBIENTLIGHT:
-                setBASE_ambientLight(val.value.i_data);
+                setBASE_ambientLight(val.Get<int32_t>());
                 break;
 
             case ATT_RENDERALL:
-                setBASE_renderAll(val.value.i_data);
+                setBASE_renderAll(val.Get<int32_t>());
                 break;
 
             case ATT_INPUTHANDLE:
-                setBASE_inputHandle (val.value.i_data);
+                setBASE_inputHandle (val.Get<int32_t>());
                 break;
 
             case ATT_FADELEN:
-                setBASE_fadeLength(val.value.i_data);
+                setBASE_fadeLength(val.Get<int32_t>());
                 break;
 
             case ATT_STATIC:
-                setBASE_static (val.value.i_data);
+                setBASE_static (val.Get<int32_t>());
                 break;
 
             case ATT_EMBDRSRC:
-                setBASE_embdRsrc(val.value.i_data);
+                setBASE_embdRsrc(val.Get<int32_t>());
                 break;
 
             default:
@@ -249,191 +249,6 @@ size_t NC_STACK_base::func1()
         delete_class_obj(OBJT);
 
     return NC_STACK_nucleus::func1();
-}
-
-size_t NC_STACK_base::func2(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case ATT_SKELET:
-                setBASE_skeleton((NC_STACK_skeleton *)val.value.p_data);
-                break;
-
-            case ATT_ADE:
-                setBASE_ADE((NC_STACK_ade *)val.value.p_data);
-                break;
-
-            case ATT_PARENTFOLLOW:
-                setBASE_parentFollow(val.value.i_data);
-                break;
-
-            case ATT_VISLIMIT:
-                setBASE_visLimit(val.value.i_data);
-                break;
-
-            case ATT_AMBIENTLIGHT:
-                setBASE_ambientLight(val.value.i_data);
-                break;
-
-            case ATT_RENDERALL:
-                setBASE_renderAll(val.value.i_data);
-                break;
-
-            case ATT_INPUTHANDLE:
-                setBASE_inputHandle (val.value.i_data);
-                break;
-
-            case ATT_FADELEN:
-                setBASE_fadeLength(val.value.i_data);
-                break;
-
-            case ATT_STATIC:
-                setBASE_static (val.value.i_data);
-                break;
-
-            case ATT_EMBDRSRC:
-                setBASE_embdRsrc(val.value.i_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_nucleus::func2(stak);
-}
-
-size_t NC_STACK_base::func3(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case ATT_SKELET:
-                *(NC_STACK_skeleton **)val.value.p_data = getBASE_skeleton();
-                break;
-            case ATT_PARENTFOLLOW:
-                *(int *)val.value.p_data = getBASE_parentFollow();
-                break;
-            case 0x80001003:
-            case 0x80001007:
-                *(int *)val.value.p_data = 0;
-                break;
-            case ATT_VISLIMIT:
-                *(int *)val.value.p_data = getBASE_visLimit();
-                break;
-            case ATT_AMBIENTLIGHT:
-                *(int *)val.value.p_data = getBASE_ambientLight();
-                break;
-            case ATT_RENDERALL:
-                *(int *)val.value.p_data = getBASE_renderAll();
-                break;
-            case ATT_INPUTHANDLE:
-                *(int *)val.value.p_data = getBASE_inputHandle();
-                break;
-            case ATT_X:
-                *(float *)val.value.p_data = getBASE_x();
-                break;
-            case ATT_Y:
-                *(float *)val.value.p_data = getBASE_y();
-                break;
-            case ATT_Z:
-                *(float *)val.value.p_data = getBASE_z();
-                break;
-            case ATT_VX:
-                *(float *)val.value.p_data = getBASE_vx();
-                break;
-            case ATT_VY:
-                *(float *)val.value.p_data = getBASE_vy();
-                break;
-            case ATT_VZ:
-                *(float *)val.value.p_data = getBASE_vz();
-                break;
-            case ATT_AX:
-                *(int *)val.value.p_data = getBASE_ax();
-                break;
-            case ATT_AY:
-                *(int *)val.value.p_data = getBASE_ay();
-                break;
-            case ATT_AZ:
-                *(int *)val.value.p_data = getBASE_az();
-                break;
-            case ATT_RX:
-                *(int *)val.value.p_data = getBASE_rx();
-                break;
-            case ATT_RY:
-                *(int *)val.value.p_data = getBASE_ry();
-                break;
-            case ATT_RZ:
-                *(int *)val.value.p_data = getBASE_rz();
-                break;
-            case ATT_SX:
-                *(float *)val.value.p_data = getBASE_sx();
-                break;
-            case ATT_SY:
-                *(float *)val.value.p_data = getBASE_sy();
-                break;
-            case ATT_SZ:
-                *(float *)val.value.p_data = getBASE_sz();
-                break;
-            case ATT_ADELIST:
-                *(AdeList **)val.value.p_data = getBASE_adeList();
-                break;
-            case ATT_PTRANSFORM:
-                *(TFEngine::TForm3D **)val.value.p_data = getBASE_pTransform();
-                break;
-            case ATT_KIDSLIST:
-                *(BaseList **)val.value.p_data = &KIDS;
-                break;
-//                case ATT_KIDNODE:
-//                    *(base_node **)val.value.p_data = getBASE_kidNode();
-//                    break;
-            case ATT_RENDERPARAMS:
-                *(area_arg_65 **)val.value.p_data = getBASE_renderParams();
-                break;
-            case ATT_MAINKID:
-                *(int *)val.value.p_data = getBASE_mainKid();
-                break;
-            case ATT_MAINOBJT:
-                *(int *)val.value.p_data = getBASE_mainObjt();
-                break;
-            case ATT_RENDERSTACK:
-                //                *(void **)val.value.p_data = getBASE_renderStack();
-                break;
-            case ATT_ARGSTACK:
-                //                *(void **)val.value.p_data = getBASE_argStack();
-                break;
-            case ATT_ENDARGSTACK:
-                //                *(void **)val.value.p_data = getBASE_endArgStack();
-                break;
-            case ATT_FADELEN:
-                *(int *)val.value.p_data = getBASE_fadeLength();
-                break;
-            case ATT_STATIC:
-                *(int *)val.value.p_data = getBASE_static();
-                break;
-            case ATT_EMBDRSRC:
-                *(int *)val.value.p_data = getBASE_embdRsrc();
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_nucleus::func3(stak);
 }
 
 int NC_STACK_base::READ_STRC(IFFile *mfile)
@@ -1205,24 +1020,24 @@ size_t NC_STACK_base::base_func78(base_64arg *arg)
 
     flags |= (FLAG_MOVING | FLAG_ROTATING);
 
-    if ( arg->field_8->but_flags & 0x80000000 )
+    if ( arg->field_8->Buttons.Is(31) )
     {
         transform.ay = 0;
         transform.az = 0;
         transform.ax = 0;
     }
 
-    transform.rx = -arg->field_8->sliders_vars[31] * 16384.0;
-    transform.ry = -arg->field_8->sliders_vars[30] * 16384.0;
-    transform.rz = -arg->field_8->sliders_vars[29] * 16384.0;
+    transform.rx = -arg->field_8->Sliders[31] * 16384.0;
+    transform.ry = -arg->field_8->Sliders[30] * 16384.0;
+    transform.rz = -arg->field_8->Sliders[29] * 16384.0;
 
-    transform.vec.x = -arg->field_8->sliders_vars[28] * transform.locSclRot.m20;
+    transform.vec.x = -arg->field_8->Sliders[28] * transform.locSclRot.m20;
     transform.vec.y = 0;
-    transform.vec.z = -arg->field_8->sliders_vars[28] * transform.locSclRot.m22;
+    transform.vec.z = -arg->field_8->Sliders[28] * transform.locSclRot.m22;
 
-    transform.vec.x += -arg->field_8->sliders_vars[27] * transform.locSclRot.m20;
-    transform.vec.y += -arg->field_8->sliders_vars[27] * transform.locSclRot.m21;
-    transform.vec.z += -arg->field_8->sliders_vars[27] * transform.locSclRot.m22;
+    transform.vec.x += -arg->field_8->Sliders[27] * transform.locSclRot.m20;
+    transform.vec.y += -arg->field_8->Sliders[27] * transform.locSclRot.m21;
+    transform.vec.z += -arg->field_8->Sliders[27] * transform.locSclRot.m22;
 
     return 1;
 }
@@ -1528,59 +1343,7 @@ int NC_STACK_base::getBASE_embdRsrc()
 
 
 
-
-size_t NC_STACK_base::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return (size_t)func2( *(IDVList *)data );
-    case 3:
-        return (size_t)func3( *(IDVList *)data );
-    case 5:
-        return (size_t)func5( (IFFile **)data );
-    case 6:
-        return (size_t)func6( (IFFile **)data );
-    case 64:
-        return (size_t)base_func64( (base_64arg *)data );
-    case 65:
-        return (size_t)base_func65( (NC_STACK_base *)data );
-    case 66:
-        return 0;//(size_t)base_func66( (base_66_arg_struct *)data );
-    case 67:
-        return (size_t)base_func67( (NC_STACK_base **)data );
-    case 68:
-        return (size_t)base_func68( (flag_xyz *)data );
-    case 69:
-        return (size_t)base_func69( (flag_xyz *)data );
-    case 70:
-        return (size_t)base_func70( (flag_xyz2 *)data );
-    case 71:
-        return (size_t)base_func71( (flag_xyz2 *)data );
-    case 72:
-        return (size_t)base_func72( (flag_xyz *)data );
-    case 73:
-        return (size_t)base_func73( (base_64arg *)data );
-    case 77:
-        return (size_t)base_func77( (baseRender_msg *)data );
-    case 78:
-        return (size_t)base_func78( (base_64arg *)data );
-    case 79:
-        return (size_t)base_func79( (NC_STACK_base **)data );
-    default:
-        break;
-    }
-    return NC_STACK_nucleus::compatcall(method_id, data);
-}
-
-
-
-
-NC_STACK_base *NC_STACK_base::READ_BAS_FILE(const char *fname)
+NC_STACK_base *NC_STACK_base::READ_BAS_FILE(const std::string &fname)
 {
     NC_STACK_base *result = NULL;
 

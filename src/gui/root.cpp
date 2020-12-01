@@ -24,7 +24,7 @@ uint32_t Root::GetNextId()
     auto tmID = _nextId;
     _nextId = (_nextId + 2) & ~(1 << ((sizeof(_nextId) << 3) - 1));
     return tmID;
-};
+}
 
 void Root::AddWidget(Widget *w, bool top)
 {
@@ -637,7 +637,7 @@ SDL_Surface *Root::CreateScreenFmtSurface(uint32_t w, uint32_t h)
 #else
     int bpp;
     Uint32 Rmask, Gmask, Bmask, Amask;
-    SDL_PixelFormatEnumToMasks(curr.format, &bpp, &Rmask, &Gmask, &Bmask, &Amask)
+    SDL_PixelFormatEnumToMasks(curr.format, &bpp, &Rmask, &Gmask, &Bmask, &Amask);
         
     return SDL_CreateRGBSurface(0, w, h, bpp, Rmask, Gmask, Bmask, Amask );
 #endif

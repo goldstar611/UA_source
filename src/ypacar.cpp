@@ -27,20 +27,20 @@ size_t NC_STACK_ypacar::func0(IDVList &stak)
 
     _bact_type = BACT_TYPES_CAR;
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case CAR_ATT_KAMIKAZE:
-                setCAR_kamikaze(val.value.i_data);
+                setCAR_kamikaze(val.Get<int32_t>());
                 break;
 
             case CAR_ATT_BLAST:
-                setCAR_blast(val.value.i_data);
+                setCAR_blast(val.Get<int32_t>());
                 break;
 
             default:
@@ -61,49 +61,20 @@ size_t NC_STACK_ypacar::func2(IDVList &stak)
 {
     NC_STACK_ypatank::func2(stak);
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case CAR_ATT_KAMIKAZE:
-                setCAR_kamikaze(val.value.i_data);
+                setCAR_kamikaze(val.Get<int32_t>());
                 break;
 
             case CAR_ATT_BLAST:
-                setCAR_blast(val.value.i_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return 1;
-}
-
-size_t NC_STACK_ypacar::func3(IDVList &stak)
-{
-    NC_STACK_ypatank::func3(stak);
-
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case CAR_ATT_KAMIKAZE:
-                *(int *)val.value.p_data = getCAR_kamikaze();
-                break;
-
-            case CAR_ATT_BLAST:
-                *(int *)val.value.p_data = getCAR_blast();
+                setCAR_blast(val.Get<int32_t>());
                 break;
 
             default:
@@ -376,12 +347,12 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
             }
         }
 
-        if ( arg->inpt->sliders_vars[3] != 0.0 )
+        if ( arg->inpt->Sliders[3] != 0.0 )
         {
             if ( _fly_dir_length != 0.0 )
             {
                 float v63 = fabs(_fly_dir_length);
-                float angle = -arg->inpt->sliders_vars[3] * _maxrot * v78 * (sqrt(v63) * 0.2);
+                float angle = -arg->inpt->Sliders[3] * _maxrot * v78 * (sqrt(v63) * 0.2);
 
                 _rotation = mat3x3::RotateY(angle) * _rotation;
             }
@@ -400,8 +371,8 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
             }
         }
 
-        float v76 = arg->inpt->sliders_vars[4];
-        float v65 = fabs(arg->inpt->sliders_vars[4]);
+        float v76 = arg->inpt->Sliders[4];
+        float v65 = fabs(arg->inpt->Sliders[4]);
 
         if ( v76 < -1.0 )
             v76 = -1.0;
@@ -411,7 +382,7 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
         _thraction += _force * (v78 * 0.75) * v76;
 
         float v69;
-        if ( arg->inpt->but_flags & 0x80000000 )
+        if ( arg->inpt->Buttons.Is(31) )
             v69 = _force * v65;
         else
             v69 = _force;
@@ -425,7 +396,7 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
         if ( fabs(v76) > 0.001 )
             _status_flg |= BACT_STFLAG_MOVE;
 
-        _gun_angle_user += v78 * arg->inpt->sliders_vars[5];
+        _gun_angle_user += v78 * arg->inpt->Sliders[5];
 
         if ( _gun_angle_user < -0.3 )
             _gun_angle_user = -0.3;
@@ -450,7 +421,7 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
             arg79.target.pbact = arg106.ret_bact;
         }
 
-        if ( arg->inpt->but_flags & 1 || arg->inpt->but_flags & 2 )
+        if ( arg->inpt->Buttons.IsAny({0, 1}) )
         {
             if ( _carKamikaze )
             {
@@ -470,7 +441,7 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
                 arg79.start_point.y = _fire_pos.y;
                 arg79.start_point.z = _fire_pos.z;
 
-                arg79.flags = ((arg->inpt->but_flags & 2) != 0) | 2;
+                arg79.flags = (arg->inpt->Buttons.Is(1) ? 1 : 0) | 2;
 
                 LaunchMissile(&arg79);
             }
@@ -480,7 +451,7 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
         {
             if ( _status_flg & BACT_STFLAG_FIRE )
             {
-                if ( !(arg->inpt->but_flags & 4) )
+                if ( !arg->inpt->Buttons.Is(2) )
                 {
                     setState_msg arg78;
                     arg78.setFlags = 0;
@@ -491,7 +462,7 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
                 }
             }
 
-            if ( arg->inpt->but_flags & 4 )
+            if ( arg->inpt->Buttons.Is(2) )
             {
                 if ( !(_status_flg & BACT_STFLAG_FIRE) )
                 {
@@ -516,7 +487,7 @@ void NC_STACK_ypacar::User_layer(update_msg *arg)
         {
             move_msg arg74;
 
-            if ( arg->inpt->but_flags & 8 )
+            if ( arg->inpt->Buttons.Is(3) )
             {
                 _thraction = 0;
 
@@ -1059,23 +1030,3 @@ int NC_STACK_ypacar::getCAR_blast()
 }
 
 
-size_t NC_STACK_ypacar::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return func2( *(IDVList *)data );
-    case 3:
-        return func3( *(IDVList *)data );
-    case 71:
-        User_layer( (update_msg *)data );
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_ypatank::compatcall(method_id, data);
-}

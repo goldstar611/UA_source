@@ -30,9 +30,9 @@ int tform_inited = 0;
 int audio_inited = 0;
 int input_inited = 0;
 
-key_value_stru tuneKeys[1] =
+Common::Ini::KeyList tuneKeys
 {
-    {"tune.weapon_radius", KEY_TYPE_BOOL, 0}               //0
+    Common::Ini::Key("tune.weapon_radius", Common::Ini::KT_BOOL)               //0
 };
 
 static bool fixWeaponRadius = false;
@@ -80,14 +80,12 @@ int sb_0x411324__sub0()
 
     LevelInfo *var_2d90 = ypaworld->getYW_levelInfo();
 
-    char buf[200];
-
     switch( var_2d90->State )
     {
     case 1:
     case 2:
     {
-        ypaworld->ypaworld_func151();
+        ypaworld->DeleteLevel();
 
         if ( dword_513638 || var_2d90->State == 2 )
         {
@@ -128,7 +126,7 @@ int sb_0x411324__sub0()
         if ( ypaworld->ypaworld_func156(&userdata) )
         {
             dword_520400 = 1;
-            INPe.sub_412D28(&input_states);
+            INPe.QueryInput(&input_states);
 
             if (!v0)
                 return 0;
@@ -144,49 +142,32 @@ int sb_0x411324__sub0()
 
     case 4:
     {
-        ypaworld->ypaworld_func151();
+        ypaworld->DeleteLevel();
 
-        sprintf(buf, "save:%s/%d.rst", userdata.user_name.c_str(), var_2d90->LevelID);
-
-        yw_arg169 arg169;
-        arg169.saveFile = buf;
-        arg169.usr = &userdata;
-
-        if ( !ypaworld->ypaworld_func169(&arg169) )
+        if ( !ypaworld->LoadGame( fmt::sprintf("save:%s/%d.rst", userdata.user_name, var_2d90->LevelID) ) )
             ypa_log_out("Warning, load error\n");
 
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
     break;
 
     case 6:
     {
-        yw_arg169 arg169;
-        arg169.usr = &userdata;
-        arg169.saveFile = buf;
-
-        sprintf(buf, "save:%s/%d.sgm", userdata.user_name.c_str(), 0);
-
-        if ( !ypaworld->ypaworld_func170(&arg169) )
+        if ( !ypaworld->SaveGame( fmt::sprintf("save:%s/%d.sgm", userdata.user_name, 0) ) )
             ypa_log_out("Warning, Save error\n");
 
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
     break;
 
     case 7:
     {
-        ypaworld->ypaworld_func151();
+        ypaworld->DeleteLevel();
 
-        yw_arg169 arg169;
-        arg169.usr = &userdata;
-        arg169.saveFile = buf;
-        sprintf(buf, "save:%s/%d.sgm", userdata.user_name.c_str(), 0);
-
-        if ( !ypaworld->ypaworld_func169(&arg169) )
+        if ( !ypaworld->LoadGame( fmt::sprintf("save:%s/%d.sgm", userdata.user_name, 0) ) )
             ypa_log_out("Warning, load error\n");
 
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
     break;
 
@@ -232,7 +213,7 @@ int sb_0x411324__sub2__sub0(base_64arg *arg)
         {
             dword_520400 = 1;
 
-            INPe.sub_412D28(&input_states);
+            INPe.QueryInput(&input_states);
 
             return 0;
         }
@@ -249,37 +230,37 @@ int sb_0x411324__sub2__sub0(base_64arg *arg)
 
     int cont_play = 1;
 
-    if ( arg->field_8->downed_key == 'N' )
+    if ( arg->field_8->KbdLastHit == Input::KC_N )
     {
         arg165.field_0 = 4;
     }
-    else if ( arg->field_8->downed_key == 'P' )
+    else if ( arg->field_8->KbdLastHit == Input::KC_P )
     {
         arg165.field_0 = 2;
     }
-    else if ( arg->field_8->downed_key == 'R' )
+    else if ( arg->field_8->KbdLastHit == Input::KC_R )
     {
         arg165.field_0 = 3;
     }
-    else if ( arg->field_8->downed_key == 'S' )
+    else if ( arg->field_8->KbdLastHit == Input::KC_S )
     {
         arg165.field_0 = 1;
     }
-    else if ( arg->field_8->downed_key == 'V' )
+    else if ( arg->field_8->KbdLastHit == Input::KC_V )
     {
         arg165.frame = -10;
         arg165.field_0 = 7;
     }
-    else if ( arg->field_8->downed_key == 'B' )
+    else if ( arg->field_8->KbdLastHit == Input::KC_B )
     {
         arg165.field_0 = 5;
     }
-    else if ( arg->field_8->downed_key == 'M' )
+    else if ( arg->field_8->KbdLastHit == Input::KC_M )
     {
         arg165.frame = 10;
         arg165.field_0 = 7;
     }
-    else if ( arg->field_8->downed_key == UAVK_SPACE || arg->field_8->downed_key == UAVK_ESCAPE )
+    else if ( arg->field_8->KbdLastHit == Input::KC_SPACE || arg->field_8->KbdLastHit == Input::KC_ESCAPE )
     {
         cont_play = 0;
     }
@@ -327,9 +308,9 @@ int sb_0x411324__sub2()
 
         dword_520400 = 1;
 
-        memset(&input_states, 0, sizeof(struC5));
+        input_states.Clear();
 
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
     return 1;
 }
@@ -366,7 +347,7 @@ int sb_0x411324__sub1()
             return 0;
         }
         dword_520400 = 2;
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
     else if ( userdata.envAction.action == EnvAction::ACTION_LOAD )
     {
@@ -380,14 +361,7 @@ int sb_0x411324__sub1()
         if ( !sub_4107FC(&userdata) )
             return 0;
 
-        char a1[200];
-        yw_arg169 arg169;
-        arg169.saveFile = a1;
-        arg169.usr = &userdata;
-
-        sprintf(a1, "save:%s/%d.sgm", userdata.user_name.c_str(), 0);
-
-        if ( !ypaworld->ypaworld_func169(&arg169) )
+        if ( !ypaworld->LoadGame( fmt::sprintf("save:%s/%d.sgm", userdata.user_name, 0) ) )
         {
             ypa_log_out("Error while loading level (level %d, User %s\n", a4->LevelID, userdata.user_name.c_str());
 
@@ -395,7 +369,7 @@ int sb_0x411324__sub1()
             return 0;
         }
         dword_520400 = 2;
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
     else if ( userdata.envAction.action == EnvAction::ACTION_NETPLAY )
     {
@@ -423,7 +397,7 @@ int sb_0x411324__sub1()
         }
 
         dword_520400 = 2;
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
     else if ( userdata.envAction.action == EnvAction::ACTION_DEMO )
     {
@@ -464,7 +438,7 @@ int sb_0x411324__sub1()
             dword_520400 = 1;
         }
 
-        INPe.sub_412D28(&input_states);
+        INPe.QueryInput(&input_states);
     }
 
     return 1;
@@ -473,30 +447,30 @@ int sb_0x411324__sub1()
 
 int sb_0x411324()
 {
-    memset(&input_states, 0, sizeof(struC5));
-    INPe.sub_412D28(&input_states);
+    input_states.Clear();
+    INPe.QueryInput(&input_states);
 
     if ( userdata.field_0x10 )
     {
-        input_states.period = 1;
+        input_states.Period = 1;
         userdata.field_0x10 = 0;
     }
 
-    input_states.period++;
+    input_states.Period++;
     
-    world_update_arg.DTime = input_states.period;
+    world_update_arg.DTime = input_states.Period;
     world_update_arg.field_8 = &input_states;
 
-    world_update_arg.TimeStamp += input_states.period;
+    world_update_arg.TimeStamp += input_states.Period;
     
 
     // If mouse captured, enable releative mouse control
-    if (ypaworld->field_17c0)
+    if (ypaworld->_mouseGrabbed)
         SDLWRAP_releativeMouse(true);
     else
         SDLWRAP_releativeMouse(false);
     
-    Gui::Root::Instance.TimersUpdate( input_states.period );
+    Gui::Root::Instance.TimersUpdate( input_states.Period );
 
     if ( dword_520400 == 1 )
     {
@@ -556,8 +530,8 @@ int WinMain__sub0__sub0()
     ypaworld = 0;
     dword_520400 = 0;
     userdata.clear();
-    memset(&input_states, 0, sizeof(struC5));
-    memset(&world_update_arg, 0, sizeof(base_64arg));
+    input_states.Clear();
+    memset(&world_update_arg, 0, sizeof(world_update_arg));
 
     if ( !init_classesLists_and_variables() )
     {
@@ -648,7 +622,7 @@ int yw_initGameWithSettings()
         }
         else
         {
-            ypa_log_out("Warning: default user file doesn't exist (%s)\n", a1);
+            ypa_log_out("Warning: default user file doesn't exist (%s)\n", a1.c_str());
             a1 = fmt::sprintf("sdu7/user.txt");
             userdata.user_name = "SDU7";
         }
@@ -711,7 +685,7 @@ void sub_4113E8()
     {
         if ( dword_520400 == 2 )
         {
-            ypaworld->ypaworld_func151();
+            ypaworld->DeleteLevel();
             ypaworld->ypaworld_func155(&userdata);
         }
         else if ( dword_520400 == 1 )
@@ -734,10 +708,7 @@ int WinMain__sub0__sub1()
 //    strcat(buildDate, " ");
 //    strcat(buildDate, __TIME__);
 
-    IDVList init_vals;
-    init_vals.Add(NC_STACK_ypaworld::YW_ATT_BUILD_DATE, buildDate);
-
-    ypaworld = Nucleus::CInit<NC_STACK_ypaworld>(init_vals);
+    ypaworld = Nucleus::CInit<NC_STACK_ypaworld>( { {NC_STACK_ypaworld::YW_ATT_BUILD_DATE, std::string(buildDate)} } );
     
     Gui::UA::yw = ypaworld;
     
@@ -821,9 +792,9 @@ int main(int argc, char *argv[])
     if ( !WinMain__sub0(argc, argv) )
         return 0;
 
-    get_keyvalue_from_ini(NULL, tuneKeys, 1);
+    Common::Ini::ParseIniFile(NC_STACK_nucleus::DefaultIniFile, &tuneKeys);
 
-    fixWeaponRadius = tuneKeys[0].value.val;
+    fixWeaponRadius = tuneKeys[0].Get<bool>();
 
     uint32_t ticks = 0;
     

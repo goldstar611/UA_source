@@ -67,9 +67,7 @@ size_t NC_STACK_bitmap::func0(IDVList &stak)
 
     __NC_STACK_bitmap *internal = &stack__bitmap;
 
-    pixel_2d *v9 = NULL;
-
-    v9 = (pixel_2d *)stak.GetPointer(BMD_ATT_OUTLINE, NULL);
+    pixel_2d *v9 = stak.Get<pixel_2d *>(BMD_ATT_OUTLINE, NULL);
 
     if ( v9 )
         sub_416704(v9);
@@ -94,61 +92,16 @@ size_t NC_STACK_bitmap::func1()
     return NC_STACK_rsrc::func1();
 }
 
-size_t NC_STACK_bitmap::func2(IDVList &stak)
-{
-    pixel_2d *v5 = (pixel_2d *)stak.GetPointer(BMD_ATT_OUTLINE, NULL);
-    if ( v5 )
-        setBMD_outline(v5);
-
-    UA_PALETTE *ppal = (UA_PALETTE *)stak.GetPointer(BMD_ATT_PCOLORMAP, NULL);
-    if ( ppal )
-        setBMD_palette(ppal);
-
-    return NC_STACK_rsrc::func2(stak);
-}
-
-size_t NC_STACK_bitmap::func3(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case BMD_ATT_OUTLINE:
-                *(void **)val.value.p_data = NULL;
-                break;
-            case BMD_ATT_WIDTH:
-                *(int *)val.value.p_data = getBMD_width();
-                break;
-            case BMD_ATT_HEIGHT:
-                *(int *)val.value.p_data = getBMD_height();
-                break;
-            case BMD_ATT_HAS_COLORMAP:
-                *(int *)val.value.p_data = getBMD_hasPalette();
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_rsrc::func3(stak);
-}
-
 // Create bitmap resource node and fill rsrc field data
 rsrc * NC_STACK_bitmap::rsrc_func64(IDVList &stak)
 {
     rsrc *res = NC_STACK_rsrc::rsrc_func64(stak);// rsrc_func64
     if ( res )
     {
-        int width = stak.Get(BMD_ATT_WIDTH, 0);
-        int height = stak.Get(BMD_ATT_HEIGHT, 0);
-        int colormap = stak.Get(BMD_ATT_HAS_COLORMAP, 0);
-        //int create_texture = stak.Get(BMD_ATT_TEXTURE, 0);
+        int width = stak.Get<int32_t>(BMD_ATT_WIDTH, 0);
+        int height = stak.Get<int32_t>(BMD_ATT_HEIGHT, 0);
+        int colormap = stak.Get<int32_t>(BMD_ATT_HAS_COLORMAP, 0);
+        //int create_texture = stak.Get<int32_t>(BMD_ATT_TEXTURE, 0);
 
 
         if ( width && height )
@@ -169,7 +122,7 @@ rsrc * NC_STACK_bitmap::rsrc_func64(IDVList &stak)
                     intern->height = height;
 
                     // allocate buffer, create palette, surface and texture
-                    intern->swTex = CreateSurfaceScreenFormat(width, height);
+                    intern->swTex = engines.display___win3d->CreateSurfaceScreenFormat(width, height);
                     if (!intern->swTex)
                     {
                         delete intern;
@@ -305,46 +258,3 @@ void NC_STACK_bitmap::PrepareTexture( bool force )
     engines.display___win3d->AllocTexture(stack__bitmap.bitm_intern);
 }
 
-SDL_Surface * NC_STACK_bitmap::ConvertToScreen(SDL_Surface *src)
-{
-    return SDL_ConvertSurface(src, engines.display___win3d->GetScreenFormat(), 0);
-}
-
-SDL_Surface *NC_STACK_bitmap::CreateSurfaceScreenFormat(int width, int height)
-{
-    SDL_PixelFormat *fmt = engines.display___win3d->GetScreenFormat();
-#if SDL_VERSION_ATLEAST(2,0,5)
-    return SDL_CreateRGBSurfaceWithFormat(0, width, height, fmt->BitsPerPixel, fmt->format);
-#else
-    return SDL_CreateRGBSurface(0, width, height, fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask );
-#endif
-}
-
-size_t NC_STACK_bitmap::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return func2( *(IDVList *)data );
-    case 3:
-        return func3( *(IDVList *)data );
-    case 64:
-        return (size_t)rsrc_func64( *(IDVList *)data );
-    case 65:
-        return rsrc_func65( (rsrc *)data );
-    case 128:
-        return (size_t)bitmap_func128( (IDVPair *)data );
-    case 129:
-        return (size_t)bitmap_func129( (IDVPair *)data );
-    case 130:
-        bitmap_func130( (bitmap_arg130 *)data );
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_rsrc::compatcall(method_id, data);
-}

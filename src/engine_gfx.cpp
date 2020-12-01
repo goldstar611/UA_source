@@ -6,30 +6,27 @@
 
 GFXEngine GFXEngine::GFXe;
 
-char gfx_palette[128];
-char gfx_display[128];
-char gfx_display2[128];
-
-key_value_stru gfx_keys[6] = {{"gfx.mode", KEY_TYPE_DIGIT, 0},
-    {"gfx.xres", KEY_TYPE_DIGIT, 0},
-    {"gfx.yres", KEY_TYPE_DIGIT, 0},
-    {"gfx.palette", KEY_TYPE_STRING1, gfx_palette},
-    {"gfx.display", KEY_TYPE_STRING1, gfx_display},
-    {"gfx.display2", KEY_TYPE_STRING1, gfx_display2}
+Common::Ini::KeyList gfx_keys
+{
+    Common::Ini::Key("gfx.mode",     Common::Ini::KT_DIGIT),
+    Common::Ini::Key("gfx.xres",     Common::Ini::KT_DIGIT),
+    Common::Ini::Key("gfx.yres",     Common::Ini::KT_DIGIT),
+    Common::Ini::Key("gfx.palette",  Common::Ini::KT_WORD),
+    Common::Ini::Key("gfx.display",  Common::Ini::KT_WORD),
+    Common::Ini::Key("gfx.display2", Common::Ini::KT_WORD)
 };
 
 int GFXEngine::init()
 {
     NC_STACK_win3d::initfirst();
 
-    memset(gfx_palette, 0, 128);
-    memset(gfx_display, 0, 128);
-    memset(gfx_display2, 0, 128);
-    get_keyvalue_from_ini(0, gfx_keys, 6);
+    Common::Ini::ParseIniFile(NC_STACK_nucleus::DefaultIniFile, &gfx_keys);
 
-    if ( sub_422CE8((const char *)gfx_keys[4].value.pval, (const char *)gfx_keys[5].value.pval, 0) )
+    if ( sub_422CE8(gfx_keys[4].Get<std::string>(), 
+                    gfx_keys[5].Get<std::string>(), 
+                    0) )
     {
-        loadPal((const char *)gfx_keys[3].value.pval);
+        loadPal(gfx_keys[3].Get<std::string>());
         return 1;
     }
     return 0;
@@ -44,19 +41,16 @@ void GFXEngine::deinit()
     }
 }
 
-int GFXEngine::sub_422CE8(const char *display, const char *display2, int gfxmode)
+int GFXEngine::sub_422CE8(const std::string &display, const std::string &display2, int gfxmode)
 {
-    if ( *display )
+    if ( !display.empty() )
     {
-        IDVList vals;
-        vals.Add(NC_STACK_display::ATT_DISPLAY_ID, gfxmode);
-
-        cls3D = Nucleus::CTFInit<NC_STACK_win3d>(display, vals);
+        cls3D = Nucleus::CTFInit<NC_STACK_win3d>(display, { {NC_STACK_display::ATT_DISPLAY_ID, (int32_t)gfxmode} } );
 
         if ( !cls3D )
         {
-            if ( *display2 )
-                cls3D = Nucleus::CTFInit<NC_STACK_win3d>(display2, vals);
+            if ( !display2.empty() )
+                cls3D = Nucleus::CTFInit<NC_STACK_win3d>(display2, { {NC_STACK_display::ATT_DISPLAY_ID, (int32_t)gfxmode} } );
         }
         if ( !cls3D )
             ypa_log_out("gfx.engine: display driver init failed!\n");
@@ -71,13 +65,11 @@ int GFXEngine::sub_422CE8(const char *display, const char *display2, int gfxmode
     return cls3D != NULL;
 }
 
-int GFXEngine::loadPal(const char *palette_ilbm)
+int GFXEngine::loadPal(const std::string &palette_ilbm)
 {
-    IDVList vals;
-    vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, palette_ilbm);
-    vals.Add(NC_STACK_bitmap::BMD_ATT_HAS_COLORMAP, 1);
-
-    NC_STACK_bitmap *ilbm = Nucleus::CInit<NC_STACK_ilbm>(vals);
+    NC_STACK_bitmap *ilbm = Nucleus::CInit<NC_STACK_ilbm>( {
+        {NC_STACK_rsrc::RSRC_ATT_NAME, std::string(palette_ilbm)},
+        {NC_STACK_bitmap::BMD_ATT_HAS_COLORMAP, (int32_t)1}} );
 
     if (!ilbm)
         return 0;
@@ -132,7 +124,9 @@ void GFXEngine::setResolution(int res)
 
     delete_class_obj(cls3D);
 
-    if ( sub_422CE8(gfx_display, gfx_display2, res) )
+    if ( sub_422CE8(gfx_keys[4].Get<std::string>(), 
+                    gfx_keys[5].Get<std::string>(), 
+                    res) )
     {
         cls3D->BeginFrame();
 
@@ -224,6 +218,14 @@ void TileMap::Fill(SDL_Surface *surface, const Common::PointRect &rect, uint8_t 
 int TileMap::GetWidth(uint8_t c) const
 {
     return map[c].w;
+}
+
+int TileMap::GetWidth(const std::string &str) const
+{
+    int wdth = 0;
+    for (uint8_t c : str)
+        wdth += map[c].w;
+    return wdth;
 }
 
 Common::Point TileMap::GetSize(uint8_t c) const

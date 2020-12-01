@@ -5,24 +5,21 @@
 #include "engine_tform.h"
 #include "base.h"
 #include "listnode.h"
+#include "types.h"
 
 // !!!! if period is small, then this never happen
 #define BACT_MIN_ANGLE 0.0002
 
 class NC_STACK_ypabact;
+class NC_STACK_yparobo;
 class NC_STACK_ypamissile;
 
 class NC_STACK_ypaworld;
-
-class NC_STACK_yparobo;
 
 struct yw_arg129;
 
 struct cellArea;
 
-//typedef RefList<NC_STACK_ypabact *> YpabactList;
-//typedef RefList<NC_STACK_ypamissile *> YpamissileList;
-typedef std::list<NC_STACK_ypamissile *> YpamissileList;
 
 struct destFX
 {
@@ -43,16 +40,6 @@ struct destFX
     }
 };
 
-
-struct bact_node : public nnode
-{
-    NC_STACK_ypabact *bact;
-
-    bact_node()
-    {
-        bact = NULL;
-    }
-};
 
 enum EVPROTO_FLAG
 {
@@ -200,7 +187,7 @@ enum BACT_TYPES
 struct newMaster_msg
 {
     NC_STACK_ypabact *bact;
-    nlist *list;
+    World::RefBactList *list;
 };
 
 struct bact_arg80
@@ -220,7 +207,7 @@ struct update_msg
 {
     int gTime;
     int frameTime;
-    struC5 *inpt;
+    InputState *inpt;
     int units_count;
     int user_action;
     int protoID;
@@ -283,7 +270,7 @@ struct bact_arg94
 {
     int field_0;
     vec3d pos1;
-    vec3d pos2;
+    //vec3d pos2;
 };
 
 struct move_msg
@@ -422,7 +409,6 @@ public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
     virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual void Update(update_msg *arg);
     virtual void Render(baseRender_msg *arg);
     virtual void SetTarget(setTarget_msg *arg);
@@ -460,7 +446,7 @@ public:
     virtual void CreationTimeUpdate(update_msg *arg);
     virtual size_t IsDestroyed();
     virtual size_t CheckFireAI(bact_arg101 *arg);
-    virtual void MarkSectorsForView(IDVPair *arg);
+    virtual void MarkSectorsForView();
     virtual void ypabact_func103(IDVPair *arg);
     virtual void StuckFree(update_msg *arg);
     virtual size_t FireMinigun(bact_arg105 *arg);
@@ -485,13 +471,11 @@ public:
     virtual size_t PathFinder(bact_arg124 *arg);
     virtual size_t SetPath(bact_arg124 *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ypabact();
     virtual ~NC_STACK_ypabact() {};
-
-    virtual const char * getClassName()
-    {
-        return "ypabact.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance()
@@ -541,7 +525,6 @@ public:
     virtual int getBACT_inputting();
     virtual int getBACT_exactCollisions();
     virtual int getBACT_bactCollisions();
-    virtual nlist *getBACT_attackList();
     virtual int getBACT_landingOnWait();
     virtual int getBACT_yourLastSeconds();
     virtual NC_STACK_base *getBACT_visProto();
@@ -549,8 +532,6 @@ public:
     virtual rbcolls *getBACT_collNodes();
     virtual TFEngine::TForm3D *getBACT_vpTransform();
     virtual int getBACT_extraViewer();
-    virtual bact_node *getBACT_primAttackNode();
-    virtual bact_node *getBACT_secnAttackNode();
     virtual int getBACT_alwaysRender();
     
     virtual bool IsGroundUnit() { return false; };
@@ -564,22 +545,28 @@ public:
     void DoTargetWaypoint();
     void FixSectorFall();
     void FixBeyondTheWorld();
+    void CleanAttackersTarget();
     
     void CopyTargetOf(NC_STACK_ypabact *commander);
     
-    static World::CellBactList::Node& CellClearCallback(NC_STACK_ypabact *bact)
+    bool IsParentMyRobo() const;
+        
+    static World::RefBactList::Node& GetCellRefNode(NC_STACK_ypabact *&bact)
     {
         return bact->_cellRef;
+    }
+    
+    static World::RefBactList::Node& GetKidRefNode(NC_STACK_ypabact *&bact)
+    {
+        return bact->_kidRef;
     }
 
     //Data
 public:
     static const Nucleus::ClassDescr description;
-public:
-    //ypabactTHINGTOREPLACE;
+public:    
     
-    
-    World::CellBactList::Node _cellRef;
+    World::RefBactList::Node _cellRef;
     
     int _sectX;
     int _sectY;
@@ -595,8 +582,8 @@ public:
     int _commandID;
     NC_STACK_yparobo *_host_station; // parent robo?
     NC_STACK_ypabact *_parent;
-    nlist _subjects_list;
-    bact_node _subject_node;
+    World::RefBactList _kidList;
+    World::RefBactList::Node _kidRef;
     samples_collection1 _soundcarrier;
     int _soundFlags;
     int _volume;
@@ -705,7 +692,7 @@ public:
     int _mgun;
     char _num_weapons;
 
-    YpamissileList _missiles_list;
+    World::MissileList _missiles_list;
     int _weapon_time;
     vec3d _fire_pos;
     float _gun_angle;
@@ -737,9 +724,7 @@ public:
     int _oflags;
     NC_STACK_ypaworld *_yw;
     vhclBases _current_vp;
-    nlist _attackers_list;
-    bact_node _attack_node_prim;
-    bact_node _attack_node_scnd;
+    World::BactList _attackersList;
     int _yls_time;  
     
 protected:

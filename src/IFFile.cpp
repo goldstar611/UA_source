@@ -49,7 +49,7 @@ IFFile::~IFFile()
         delete file_handle;
 }
 
-IFFile *IFFile::openIFFile(const char *filename, bool forWrite)
+IFFile *IFFile::openIFFile(const std::string &filename, bool forWrite)
 {
     std::string tmpBuf = "rsrc:";
     tmpBuf += filename;
@@ -57,9 +57,9 @@ IFFile *IFFile::openIFFile(const char *filename, bool forWrite)
     FSMgr::FileHandle *fil;
 
     if (forWrite)
-        fil = uaOpenFile(tmpBuf.c_str(), "wb");
+        fil = uaOpenFile(tmpBuf, "wb");
     else
-        fil = uaOpenFile(tmpBuf.c_str(), "rb");
+        fil = uaOpenFile(tmpBuf, "rb");
 
     if ( !fil )
         return NULL;
@@ -291,7 +291,7 @@ int32_t IFFile::write(const void *buf, int32_t sz)
         return IFF_ERR_SYNTAX;
 
     if ( ctx->TAG_SIZE != -1 &&
-            ctx->position + sz <= ctx->TAG_SIZE)
+            ctx->position + sz > ctx->TAG_SIZE)
     {
         if ( ctx->TAG_SIZE == ctx->position )
             return 0;
@@ -484,6 +484,14 @@ bool IFFile::readFloatB(double &dst)
 
     dst = tmp;
     return true;
+}
+
+std::string IFFile::readStr(int maxSz)
+{
+    char *bf = new char[maxSz];
+    std::string tmp(bf, read(bf, maxSz));
+    delete[] bf;
+    return tmp;
 }
 
 bool IFFile::writeU8(uint8_t val)

@@ -17,10 +17,7 @@ int yw_write_callSign(NC_STACK_ypaworld *yw, const char *filename, const char *c
     if ( usr->user_name.empty() )
         return 0;
 
-    char buf[260];
-    sprintf(buf, "save:%s/%s", usr->user_name.c_str(), filename);
-
-    FSMgr::FileHandle *fil = uaOpenFile(buf, "w");
+    FSMgr::FileHandle *fil = uaOpenFile( fmt::sprintf("save:%s/%s", usr->user_name, filename), "w");
 
     if ( !fil )
         return 0;
@@ -39,14 +36,11 @@ int yw_write_user(FSMgr::FileHandle *fil, UserData *usr)
     if ( usr->callSIGN[0] >= ' ' )
         yw_write_callSign(yw, "callsign.def", usr->callSIGN.c_str());
 
-    char buf[300];
-
-    sprintf(buf, "new_user\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("new_user\n");
 
     for (int i = 0; i < 8; i++)
     {
-        sprintf(buf, "    playerstatus = %d_%d_%d_%d_%d_%d_%d_%d\n",
+        fil->printf("    playerstatus = %d_%d_%d_%d_%d_%d_%d_%d\n",
                 i,
                 yw->playerstatus[i].destroyed,
                 yw->playerstatus[i].destroyedByUser,
@@ -55,263 +49,189 @@ int yw_write_user(FSMgr::FileHandle *fil, UserData *usr)
                 yw->playerstatus[i].score,
                 yw->playerstatus[i].power,
                 yw->playerstatus[i].upgrades);
-
-        fil->write(buf, strlen(buf));
     }
 
-    sprintf(buf, "    maxroboenergy = %d\n", usr->p_ypaworld->_maxRoboEnergy);
-    fil->write(buf, strlen(buf));
+    fil->printf("    maxroboenergy = %d\n", usr->p_ypaworld->_maxRoboEnergy);
+    fil->printf("    maxreloadconst = %d\n", usr->p_ypaworld->_maxReloadConst);
+    fil->printf("    numbuddies    = %d\n", 128);
+    fil->printf("    beamenergy    = %d\n", usr->p_ypaworld->beamenergy);
 
-    sprintf(buf, "    maxreloadconst = %d\n", usr->p_ypaworld->_maxReloadConst);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    numbuddies    = %d\n", 128);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    beamenergy    = %d\n", usr->p_ypaworld->beamenergy);
-    fil->write(buf, strlen(buf));
-
-
-    sprintf(buf, "    jodiefoster   = ");
+    std::string jodie = "    jodiefoster   = ";
 
     for (int i = 0; i < 8; i++)
     {
-        char v29[12];
-
-        sprintf(v29, "%d", usr->p_ypaworld->_levelInfo->JodieFoster[i]);
-        strcat(buf, v29);
+        jodie += fmt::sprintf("%d", usr->p_ypaworld->_levelInfo->JodieFoster[i]);
 
         if ( i < 7 )
-        {
-            strcat(buf, "_");
-        }
+            jodie += "_";
     }
+    
+    fil->printf(jodie);
 
-    strcat(buf, "      ; the contact flags\n");
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("      ; the contact flags\n");
+    fil->printf("end\n\n");
 
     return 1;
 }
 
 int yw_write_input(FSMgr::FileHandle *fil, UserData *usr)
 {
-    char buf[300];
-
-    sprintf(buf, "new_input\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("new_input\n");
 
     if ( usr->p_ypaworld->field_73CE & 4 )
-        sprintf(buf, "    joystick = no\n");
+        fil->printf("    joystick = no\n");
     else
-        sprintf(buf, "    joystick = yes\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    joystick = yes\n");
 
     if ( usr->inp_altjoystick )
-        sprintf(buf, "    altjoystick = yes\n");
+        fil->printf("    altjoystick = yes\n");
     else
-        sprintf(buf, "    altjoystick = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    altjoystick = no\n");
 
     if ( usr->p_ypaworld->field_73CE & 8 )
-        sprintf(buf, "    forcefeedback = no\n");
+        fil->printf("    forcefeedback = no\n");
     else
-        sprintf(buf, "    forcefeedback = yes\n");
+        fil->printf("    forcefeedback = yes\n");
 
-    fil->write(buf, strlen(buf));
-
-    for (int i = 1; i < 46; i++)
+    for (size_t i = 1; i < usr->InputConfig.size(); i++)
     {
-        if ( usr->keyConfig[i].inp_type == World::KEYC_TYPE_BUTTON )
+        if ( usr->InputConfig[i].Type == World::INPUT_BIND_TYPE_BUTTON )
         {
-            sprintf(buf, "    input.button[%d] = ", usr->keyConfig[i].keyID);
+            fil->printf("    input.button[%d] = ", usr->InputConfig[i].KeyID);
+            fil->printf("$");
 
-            strcat(buf, "$");
-
-            if ( usr->keyConfig[i].KeyCode )
-            {
-                strcat(buf, Input::KeysInfo[usr->keyConfig[i].KeyCode]._name.c_str());
-            }
+            if ( usr->InputConfig[i].PKeyCode )
+                fil->printf(NC_STACK_input::KeyNamesTable.at(usr->InputConfig[i].PKeyCode).Name.c_str());
             else
-            {
-                strcat(buf, "nop");
-            }
+                fil->printf("nop");
         }
-        else if ( usr->keyConfig[i].inp_type == World::KEYC_TYPE_SLIDER )
+        else if ( usr->InputConfig[i].Type == World::INPUT_BIND_TYPE_SLIDER )
         {
-            sprintf(buf, "    input.slider[%d] = ", usr->keyConfig[i].keyID);
+            fil->printf("    input.slider[%d] = ", usr->InputConfig[i].KeyID);
 
-            strcat(buf, "~#");
-            strcat(buf, "$");
+            fil->printf("~#");
+            fil->printf("$");
 
-
-            if ( usr->keyConfig[i].slider_neg )
+            if ( usr->InputConfig[i].NKeyCode != Input::KC_NONE )
             {
-                strcat(buf, Input::KeysInfo[ usr->keyConfig[i].slider_neg ]._name.c_str());
+                fil->printf(NC_STACK_input::KeyNamesTable.at(usr->InputConfig[i].NKeyCode).Name.c_str());
             }
             else
             {
-                ypa_log_out("Slider(neg) %s is not declared!\n", usr->keyConfig[i].slider_name);
+                ypa_log_out("Slider(neg) %s is not declared!\n", usr->InputConfigTitle[i].c_str());
                 ypa_log_out("Use space-key for it\n");
 
-                strcat(buf, "space");
+                fil->printf("space");
             }
 
-            strcat(buf, "_#");
-            strcat(buf, "$");
+            fil->printf("_#");
+            fil->printf("$");
 
-            if ( usr->keyConfig[i].KeyCode )
+            if ( usr->InputConfig[i].PKeyCode != Input::KC_NONE )
             {
-                strcat(buf, Input::KeysInfo[ usr->keyConfig[i].KeyCode ]._name.c_str());
+                fil->printf(NC_STACK_input::KeyNamesTable.at(usr->InputConfig[i].PKeyCode).Name.c_str());
             }
             else
             {
-                ypa_log_out("Slider(pos) %s is not declared!\n", usr->keyConfig[i].slider_name);
+                ypa_log_out("Slider(pos) %s is not declared!\n", usr->InputConfigTitle[i].c_str());
                 ypa_log_out("Use space-key for it\n");
 
-                strcat(buf, "space");
+                fil->printf("space");
             }
         }
-        else if ( usr->keyConfig[i].inp_type == World::KEYC_TYPE_HOTKEY )
+        else if ( usr->InputConfig[i].Type == World::INPUT_BIND_TYPE_HOTKEY )
         {
-            sprintf(buf, "    input.hotkey[%d] = ", usr->keyConfig[i].keyID);
+            fil->printf("    input.hotkey[%d] = ", usr->InputConfig[i].KeyID);
 
-            if ( usr->keyConfig[i].KeyCode )
-            {
-                strcat(buf, Input::KeysInfo[ usr->keyConfig[i].KeyCode ]._name.c_str());
-            }
+            if ( usr->InputConfig[i].PKeyCode != Input::KC_NONE )
+                fil->printf(NC_STACK_input::KeyNamesTable.at(usr->InputConfig[i].PKeyCode).Name.c_str());
             else
-            {
-                strcat(buf, "nop");
-            }
+                fil->printf("nop");
         }
         else
             continue;
 
-        strcat(buf, "         ; ");
-        strcat(buf, usr->keyConfig[i].slider_name);
-        strcat(buf, "\n");
-        fil->write(buf, strlen(buf));
+        fil->printf("         ; ");
+        fil->printf(usr->InputConfigTitle[i]);
+        fil->printf("\n");
     }
 
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("end\n\n");
 
     return 1;
 }
 
 int yw_write_sound(FSMgr::FileHandle *fil, UserData *usr)
 {
-    char buf[300];
-
-    sprintf(buf, "new_sound\n");
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    volume = %d\n", usr->snd__volume);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    cdvolume = %d\n", usr->snd__cdvolume);
-    fil->write(buf, strlen(buf));
+    fil->printf("new_sound\n");
+    fil->printf("    volume = %d\n", usr->snd__volume);
+    fil->printf("    cdvolume = %d\n", usr->snd__cdvolume);
 
     if ( usr->snd__flags2 & 1 )
-        sprintf(buf, "    invertlr = yes\n");
+        fil->printf("    invertlr = yes\n");
     else
-        sprintf(buf, "    invertlr = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    invertlr = no\n");
 
     if ( usr->snd__flags2 & 0x10 )
-        sprintf(buf, "    cdsound = yes\n");
+        fil->printf("    cdsound = yes\n");
     else
-        sprintf(buf, "    cdsound = no\n");
+        fil->printf("    cdsound = no\n");
 
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("end\n\n");
 
     return 1;
 }
 
 int yw_write_video(FSMgr::FileHandle *fil, UserData *usr)
 {
-    char buf[300];
-
-    sprintf(buf, "new_video\n");
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    videomode = %d\n", usr->p_ypaworld->game_default_res);
-    fil->write(buf, strlen(buf));
+    fil->printf("new_video\n");
+    fil->printf("    videomode = %d\n", usr->p_ypaworld->game_default_res);
 
     if ( usr->GFX_flags & 1 )
-        sprintf(buf, "    farview = yes\n");
+        fil->printf("    farview = yes\n");
     else
-        sprintf(buf, "    farview = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    farview = no\n");
 
     if ( usr->GFX_flags & 0x10 )
-        sprintf(buf, "    16bittexture = yes\n");
+        fil->printf("    16bittexture = yes\n");
     else
-        sprintf(buf, "    16bittexture = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    16bittexture = no\n");
 
     if ( usr->GFX_flags & 8 )
-        sprintf(buf, "    drawprimitive = yes\n");
+        fil->printf("    drawprimitive = yes\n");
     else
-        sprintf(buf, "    drawprimitive = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    drawprimitive = no\n");
 
     if ( usr->GFX_flags & 2 )
-        sprintf(buf, "    heaven = yes\n");
+        fil->printf("    heaven = yes\n");
     else
-        sprintf(buf, "    heaven = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    heaven = no\n");
 
     if ( usr->GFX_flags & 4 )
-        sprintf(buf, "    softmouse = yes\n");
+        fil->printf("    softmouse = yes\n");
     else
-        sprintf(buf, "    softmouse = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    softmouse = no\n");
 
     if ( usr->enemyindicator )
-        sprintf(buf, "    enemyindicator = yes\n");
+        fil->printf("    enemyindicator = yes\n");
     else
-        sprintf(buf, "    enemyindicator = no\n");
+        fil->printf("    enemyindicator = no\n");
 
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    fxnumber = %d\n", usr->fxnumber);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("    fxnumber = %d\n", usr->fxnumber);
+    fil->printf("end\n\n");
 
     return 1;
 }
 
 int yw_write_level_status(FSMgr::FileHandle *fil, NC_STACK_ypaworld *yw, int lvlid)
 {
-    char buf[300];
-
     //sprintf(buf, "\nbegin_levelstatus %ld\n", lvlid);
-    sprintf(buf, "\nbegin_levelstatus %d\n", lvlid);
-    fil->write(buf, strlen(buf));
+    fil->printf("\nbegin_levelstatus %d\n", lvlid);
 
     //sprintf(buf, "    status = %ld\n", yw->LevelNet->mapInfos[lvlid].field_0);
-    sprintf(buf, "    status = %d\n", yw->LevelNet->mapInfos[lvlid].field_0);
-    fil->write(buf, strlen(buf));
+    fil->printf("    status = %d\n", yw->LevelNet->mapInfos[lvlid].field_0);
 
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("end\n\n");
 
     return 1;
 }
@@ -351,9 +271,7 @@ int yw_write_buddies(FSMgr::FileHandle *fil, NC_STACK_ypaworld *yw)
 
 int yw_write_status(save_status *status, const char *field, FSMgr::FileHandle *file)
 {
-    char buf[256];
-
-    sprintf(buf, "    %s = %d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d\n",
+    file->printf("    %s = %d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d_%d\n",
             field,
             status->p1,
             status->p2,
@@ -370,40 +288,25 @@ int yw_write_status(save_status *status, const char *field, FSMgr::FileHandle *f
             status->pX[6],
             status->pX[7]);
 
-    return file->write(buf, strlen(buf));
+    return 1;
 }
 
 int yw_write_shell(FSMgr::FileHandle *fil, UserData *usr)
 {
-    char buf[300];
-
     NC_STACK_ypaworld *yw = usr->p_ypaworld;
 
-    sprintf(buf, "new_shell\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("new_shell\n");
 
     if ( usr->default_lang_dll )
-    {
-        sprintf(buf, "    language = %s\n", usr->default_lang_dll->c_str());
-        fil->write(buf, strlen(buf));
-    }
+        fil->printf("    language = %s\n", usr->default_lang_dll->c_str());
 
     if ( yw->field_739A )
     {
-        sprintf(buf, "    finder = na_0_0_0_0\n");
-        fil->write(buf, strlen(buf));
-
-        sprintf(buf, "    log    = na_0_0_0_0\n");
-        fil->write(buf, strlen(buf));
-
-        sprintf(buf, "    energy = na_0_0_0_0\n");
-        fil->write(buf, strlen(buf));
-
-        sprintf(buf, "    message = na_0_0_0_0\n");
-        fil->write(buf, strlen(buf));
-
-        sprintf(buf, "    map    = na_0_0_0_0_0_0\n");
-        fil->write(buf, strlen(buf));
+        fil->printf("    finder = na_0_0_0_0\n");
+        fil->printf("    log    = na_0_0_0_0\n");
+        fil->printf("    energy = na_0_0_0_0\n");
+        fil->printf("    message = na_0_0_0_0\n");
+        fil->printf("    map    = na_0_0_0_0_0_0\n");
 
         yw_write_status(&yw->robo_map_status, "robo_map_status", fil);
         yw_write_status(&yw->robo_finder_status, "robo_finder_status", fil);
@@ -411,59 +314,36 @@ int yw_write_shell(FSMgr::FileHandle *fil, UserData *usr)
         yw_write_status(&yw->vhcl_finder_status, "vhcl_finder_status", fil);
     }
 
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("end\n\n");
 
     return 1;
 }
 
 int yw_write_item_modifers(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
     for (int i = 0; i < 256; i++)
     {
         if ( yw->VhclProtos[i].model_id )
         {
-            sprintf(buf, "modify_vehicle %d\n", i);
-            fil->write(buf, strlen(buf));
+            fil->printf("modify_vehicle %d\n", i);
 
             for (int j = 1; j < 8; j++)
             {
                 if ( yw->VhclProtos[i].disable_enable_bitmask & (1 << j) )
-                    sprintf(buf, "    enable         = %d\n", j);
+                    fil->printf("    enable         = %d\n", j);
                 else
-                    sprintf(buf, "    disable        = %d\n", j);
-
-                fil->write(buf, strlen(buf));
+                    fil->printf("    disable        = %d\n", j);
             }
 
-            sprintf(buf, "    shield         = %d\n", yw->VhclProtos[i].shield);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    energy         = %d\n", yw->VhclProtos[i].energy);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    num_weapons    = %d\n", yw->VhclProtos[i].num_weapons);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    weapon         = %d\n", yw->VhclProtos[i].weapon);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    radar          = %d\n", yw->VhclProtos[i].radar);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    fire_x         = %4.2f\n", yw->VhclProtos[i].fire_x);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    fire_y         = %4.2f\n", yw->VhclProtos[i].fire_y);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    fire_z         = %4.2f\n", yw->VhclProtos[i].fire_z);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "end\n\n");
-            fil->write(buf, strlen(buf));
+            fil->printf("    shield         = %d\n", yw->VhclProtos[i].shield);
+            fil->printf("    energy         = %d\n", yw->VhclProtos[i].energy);
+            fil->printf("    num_weapons    = %d\n", yw->VhclProtos[i].num_weapons);
+            fil->printf("    weapon         = %d\n", yw->VhclProtos[i].weapon);
+            fil->printf("    radar          = %d\n", yw->VhclProtos[i].radar);
+            fil->printf("    fire_x         = %4.2f\n", yw->VhclProtos[i].fire_x);
+            fil->printf("    fire_y         = %4.2f\n", yw->VhclProtos[i].fire_y);
+            fil->printf("    fire_z         = %4.2f\n", yw->VhclProtos[i].fire_z);
+            fil->printf("end\n\n");
         }
     }
 
@@ -471,52 +351,38 @@ int yw_write_item_modifers(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
     {
         if ( yw->WeaponProtos[i].field_0 )
         {
-            sprintf(buf, "modify_weapon %d\n", i);
-            fil->write(buf, strlen(buf));
+            fil->printf("modify_weapon %d\n", i);
 
             for (int j = 1; j < 8; j++)
             {
                 if ( yw->WeaponProtos[i].enable_mask & (1 << j) )
-                    sprintf(buf, "    enable         = %d\n", j);
+                    fil->printf("    enable         = %d\n", j);
                 else
-                    sprintf(buf, "    disable        = %d\n", j);
-
-                fil->write(buf, strlen(buf));
+                    fil->printf("    disable        = %d\n", j);
             }
 
-            sprintf(buf, "    shot_time      = %d\n", yw->WeaponProtos[i].shot_time);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    shot_time_user = %d\n", yw->WeaponProtos[i].shot_time_user);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    energy         = %d\n", yw->WeaponProtos[i].energy);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "end\n\n");
-            fil->write(buf, strlen(buf));
+            fil->printf("    shot_time      = %d\n", yw->WeaponProtos[i].shot_time);
+            fil->printf("    shot_time_user = %d\n", yw->WeaponProtos[i].shot_time_user);
+            fil->printf("    energy         = %d\n", yw->WeaponProtos[i].energy);
+            fil->printf("end\n\n");
         }
     }
 
     for (int i = 0; i < 128; i++)
     {
-        if ( yw->BuildProtos[i].type_icon )
+        if ( yw->BuildProtos[i].TypeIcon )
         {
-            sprintf(buf, "modify_building %d\n", i);
-            fil->write(buf, strlen(buf));
+            fil->printf("modify_building %d\n", i);
 
             for (int j = 1; j < 8; j++)
             {
-                if ( yw->BuildProtos[i].enable_mask & (1 << j) )
-                    sprintf(buf, "    enable         = %d\n", j);
+                if ( yw->BuildProtos[i].EnableMask & (1 << j) )
+                    fil->printf("    enable         = %d\n", j);
                 else
-                    sprintf(buf, "    disable        = %d\n", j);
-
-                fil->write(buf, strlen(buf));
+                    fil->printf("    disable        = %d\n", j);
             }
 
-            sprintf(buf, "end\n\n");
-            fil->write(buf, strlen(buf));
+            fil->printf("end\n\n");
         }
     }
 
@@ -558,12 +424,12 @@ void yw_write_map(NC_STACK_ypaworld *yw, Common::PlaneBytes *map, const std::str
 
 void yw_write_ownermap(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 {
-    Common::PlaneBytes *ownermap = new Common::PlaneBytes(yw->sectors_maxX2, yw->sectors_maxY2);
+    Common::PlaneBytes *ownermap = new Common::PlaneBytes(yw->_mapWidth, yw->_mapHeight);
 
     if ( ownermap )
     {
         for (uint32_t i = 0; i < ownermap->size(); i++)
-            (*ownermap)[i] = yw->cells[i].owner;
+            (*ownermap)[i] = yw->_cells[i].owner;
 
         fil->printf("\nbegin_ownermap\n");
         yw_write_map(yw, ownermap, "        ", fil);
@@ -582,16 +448,16 @@ void yw_write_buildmap(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 
 void yw_write_energymap(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 {
-    Common::PlaneBytes *energymap = new Common::PlaneBytes(yw->sectors_maxX2 * 3, yw->sectors_maxY2 * 3);
+    Common::PlaneBytes *energymap = new Common::PlaneBytes(yw->_mapWidth * 3, yw->_mapHeight * 3);
 
     if ( energymap )
     {
-        int sz = yw->sectors_maxY2 * yw->sectors_maxX2;
+        int sz = yw->_mapHeight * yw->_mapWidth;
         uint8_t *outbf = energymap->data();
 
         for (int i = 0; i < sz; i++)
         {
-            cellArea &cell = yw->cells[i];
+            cellArea &cell = yw->_cells[i];
 
             for (int j = 0; j < 3; j++)
             {
@@ -617,43 +483,31 @@ void yw_write_energymap(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 
 int yw_write_bact(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
     int a4 = bct->getBACT_viewer();
 
     if ( a4 )
-        sprintf(buf, "    viewer         = yes\n");
+        fil->printf("    viewer         = yes\n");
     else
-        sprintf(buf, "    viewer         = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    viewer         = no\n");
 
     a4 = bct->getBACT_inputting();
 
     if ( a4 )
-        sprintf(buf, "    user           = yes\n");
+        fil->printf("    user           = yes\n");
     else
-        sprintf(buf, "    user           = no\n");
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    user           = no\n");
 
     a4 = bct->getBACT_bactCollisions();
 
     if ( a4 )
-        sprintf(buf, "    collision      = yes\n");
+        fil->printf("    collision      = yes\n");
     else
-        sprintf(buf, "    collision      = no\n");
+        fil->printf("    collision      = no\n");
 
-    fil->write(buf, strlen(buf));
-    sprintf(buf, "    energy         = %d\n", bct->_energy);
+    fil->printf("    energy         = %d\n", bct->_energy);
+    fil->printf("    speed          = %6.5f_%6.5f_%6.5f_%6.5f\n", bct->_fly_dir.x, bct->_fly_dir.y, bct->_fly_dir.z, bct->_fly_dir_length);
 
-    fil->write(buf, strlen(buf));
-    sprintf(buf, "    speed          = %6.5f_%6.5f_%6.5f_%6.5f\n", bct->_fly_dir.x, bct->_fly_dir.y, bct->_fly_dir.z, bct->_fly_dir_length);
-
-    fil->write(buf, strlen(buf));
-
-    sprintf(
-        buf,
+    fil->printf(
         "    matrix         = %6.5f_%6.5f_%6.5f_%6.5f_%6.5f_%6.5f_%6.5f_%6.5f_%6.5f\n",
         bct->_rotation.m00,
         bct->_rotation.m01,
@@ -665,226 +519,114 @@ int yw_write_bact(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
         bct->_rotation.m21,
         bct->_rotation.m22);
 
-    fil->write(buf, strlen(buf));
-
     if ( bct->_bact_type == BACT_TYPES_ROBO )
     {
         NC_STACK_yparobo *roboo = dynamic_cast<NC_STACK_yparobo *>(bct);
-        sprintf(
-            buf,
+        fil->printf(
             "    pos            = %2.2f_%2.2f_%2.2f\n",
             bct->_position.x,
             roboo->_roboYPos,
             bct->_position.z);
     }
     else
-        sprintf(
-            buf,
+        fil->printf(
             "    pos            = %2.2f_%2.2f_%2.2f\n",
             bct->_position.x,
             bct->_position.y,
             bct->_position.z);
 
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    force          = %2.2f\n", bct->_thraction);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    gunangle       = %5.4f\n", bct->_gun_angle_user);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    commandID      = %d\n", (bct->_commandID & 0xFFFFFF));
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    aggression     = %d\n", bct->_aggr);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    mainstate      = %d\n", bct->_status);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    extrastate     = %d\n", bct->_status_flg);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    ident          = %d\n", bct->_gid);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    killerowner    = %d\n", bct->_killer_owner);
-    fil->write(buf, strlen(buf));
+    fil->printf("    force          = %2.2f\n", bct->_thraction);
+    fil->printf("    gunangle       = %5.4f\n", bct->_gun_angle_user);
+    fil->printf("    commandID      = %d\n", (bct->_commandID & 0xFFFFFF));
+    fil->printf("    aggression     = %d\n", bct->_aggr);
+    fil->printf("    mainstate      = %d\n", bct->_status);
+    fil->printf("    extrastate     = %d\n", bct->_status_flg);
+    fil->printf("    ident          = %d\n", bct->_gid);
+    fil->printf("    killerowner    = %d\n", bct->_killer_owner);
 
     if ( bct->_primTtype == BACT_TGT_TYPE_UNIT )
-        sprintf(buf, "    primary        = %d_%d_%2.2f_%2.2f_%d\n", bct->_primTtype, bct->_primT.pbact->_gid, bct->_primTpos.x, bct->_primTpos.z, bct->_primT_cmdID);
+        fil->printf("    primary        = %d_%d_%2.2f_%2.2f_%d\n", bct->_primTtype, bct->_primT.pbact->_gid, bct->_primTpos.x, bct->_primTpos.z, bct->_primT_cmdID);
     else
-        sprintf(buf, "    primary        = %d_0_%2.2f_%2.2f_%d\n", bct->_primTtype, bct->_primTpos.x, bct->_primTpos.z, bct->_primT_cmdID);
-
-    fil->write(buf, strlen(buf));
+        fil->printf("    primary        = %d_0_%2.2f_%2.2f_%d\n", bct->_primTtype, bct->_primTpos.x, bct->_primTpos.z, bct->_primT_cmdID);
 
     for (int i = 0; i < bct->_waypoints_count; i++)
-    {
-        sprintf(buf, "    waypoint       = %d_%2.2f_%2.2f\n", i, bct->_waypoints[i].x, bct->_waypoints[i].z);
-        fil->write(buf, strlen(buf));
-    }
+        fil->printf("    waypoint       = %d_%2.2f_%2.2f\n", i, bct->_waypoints[i].x, bct->_waypoints[i].z);
 
-    sprintf(buf, "    num_wp         = %d\n", bct->_waypoints_count);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    count_wp       = %d\n", bct->_current_waypoint);
-    fil->write(buf, strlen(buf));
+    fil->printf("    num_wp         = %d\n", bct->_waypoints_count);
+    fil->printf("    count_wp       = %d\n", bct->_current_waypoint);
 
     return 1;
 }
 
-int yw_write_robo(NC_STACK_ypaworld *yw, NC_STACK_yparobo *robo, FSMgr::FileHandle *fil)
+bool NC_STACK_ypaworld::yw_write_robo(NC_STACK_yparobo *robo, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
-    sprintf(buf, "\nbegin_robo %d\n", robo->_vehicleID);
-    fil->write(buf, strlen(buf));
+    fil->printf("\nbegin_robo %d\n", robo->_vehicleID);
 
     const char *isuser = "no";
 
-    if (robo == yw->UserRobo)
+    if (robo == UserRobo)
         isuser = "yes";
 
-    sprintf(buf, "    is_user_robo   = %s\n", isuser);
-    fil->write(buf, strlen(buf));
+    fil->printf("    is_user_robo   = %s\n", isuser);
 
     if ( !yw_write_bact(robo, fil) )
-        return 0;
+        return false;
 
-    sprintf(buf, "    owner          = %d\n", robo->_owner);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    robostate      = %d\n", robo->_roboState & 0xC00F );
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    dockenergy     = %d\n", robo->_roboDockEnerg);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    dockcount      = %d\n", robo->_roboDockCnt);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    dockuser       = %d\n", robo->_roboDockUser);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    docktime       = %d\n", robo->_roboDockTime);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    docktargetpos  = %2.2f_%2.2f\n", robo->_roboDockTargetPos.x, robo->_roboDockTargetPos.z);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    docktargetID   = %d\n", robo->_roboDockTargetCommandID);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    docktargettype = %d\n", robo->_roboDockTargetType);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    dockaggr       = %d\n", robo->_roboDockAggr);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    battvehicle    = %d\n", robo->_roboEnergyLife);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    battbeam       = %d\n", robo->_roboEnergyMove);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    fillmodus      = %d\n", robo->_roboFillMode);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    maximum        = %d\n", robo->_energy_max);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    buildspare     = %d\n", robo->_roboBuildSpare);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    vhoriz         = %7.5f\n", robo->_viewer_horiz_angle);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    vvert          = %7.5f\n", robo->_viewer_vert_angle);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    con_budget     = %d\n", robo->_roboEpConquer);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    def_budget     = %d\n", robo->_roboEpDefense);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    rec_budget     = %d\n", robo->_roboEpRecon);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    rob_budget     = %d\n", robo->_roboEpRobo);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    rad_budget     = %d\n", robo->_roboEpRadar);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    pow_budget     = %d\n", robo->_roboEpPower);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    saf_budget     = %d\n", robo->_roboEpSafety);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    cpl_budget     = %d\n", robo->_roboEpChangePlace);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    saf_delay     = %d\n", robo->_roboSafetyDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    pow_delay     = %d\n", robo->_roboPowerDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    rad_delay     = %d\n", robo->_roboRadarDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    cpl_delay     = %d\n", robo->_roboPositionDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    def_delay     = %d\n", robo->_roboEnemyDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    con_delay     = %d\n", robo->_roboConqDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    rec_delay     = %d\n", robo->_roboExploreDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    rob_delay     = %d\n", robo->_roboDangerDelay);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    reload_const  = %d\n", robo->_reload_const);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
-
-    return 1;
+    fil->printf("    owner          = %d\n", robo->_owner);
+    fil->printf("    robostate      = %d\n", robo->_roboState & 0xC00F );
+    fil->printf("    dockenergy     = %d\n", robo->_roboDockEnerg);
+    fil->printf("    dockcount      = %d\n", robo->_roboDockCnt);
+    fil->printf("    dockuser       = %d\n", robo->_roboDockUser);
+    fil->printf("    docktime       = %d\n", robo->_roboDockTime);
+    fil->printf("    docktargetpos  = %2.2f_%2.2f\n", robo->_roboDockTargetPos.x, robo->_roboDockTargetPos.z);
+    fil->printf("    docktargetID   = %d\n", robo->_roboDockTargetCommandID);
+    fil->printf("    docktargettype = %d\n", robo->_roboDockTargetType);
+    fil->printf("    dockaggr       = %d\n", robo->_roboDockAggr);
+    fil->printf("    battvehicle    = %d\n", robo->_roboEnergyLife);
+    fil->printf("    battbeam       = %d\n", robo->_roboEnergyMove);
+    fil->printf("    fillmodus      = %d\n", robo->_roboFillMode);
+    fil->printf("    maximum        = %d\n", robo->_energy_max);
+    fil->printf("    buildspare     = %d\n", robo->_roboBuildSpare);
+    fil->printf("    vhoriz         = %7.5f\n", robo->_viewer_horiz_angle);
+    fil->printf("    vvert          = %7.5f\n", robo->_viewer_vert_angle);
+    fil->printf("    con_budget     = %d\n", robo->_roboEpConquer);
+    fil->printf("    def_budget     = %d\n", robo->_roboEpDefense);
+    fil->printf("    rec_budget     = %d\n", robo->_roboEpRecon);
+    fil->printf("    rob_budget     = %d\n", robo->_roboEpRobo);
+    fil->printf("    rad_budget     = %d\n", robo->_roboEpRadar);
+    fil->printf("    pow_budget     = %d\n", robo->_roboEpPower);
+    fil->printf("    saf_budget     = %d\n", robo->_roboEpSafety);
+    fil->printf("    cpl_budget     = %d\n", robo->_roboEpChangePlace);
+    fil->printf("    saf_delay     = %d\n", robo->_roboSafetyDelay);
+    fil->printf("    pow_delay     = %d\n", robo->_roboPowerDelay);
+    fil->printf("    rad_delay     = %d\n", robo->_roboRadarDelay);
+    fil->printf("    cpl_delay     = %d\n", robo->_roboPositionDelay);
+    fil->printf("    def_delay     = %d\n", robo->_roboEnemyDelay);
+    fil->printf("    con_delay     = %d\n", robo->_roboConqDelay);
+    fil->printf("    rec_delay     = %d\n", robo->_roboExploreDelay);
+    fil->printf("    rob_delay     = %d\n", robo->_roboDangerDelay);
+    fil->printf("    reload_const  = %d\n", robo->_reload_const);
+    fil->printf("end\n\n");
+    return true;
 }
 
 int yw_write_gun(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
     if ( bct->_bact_type == BACT_TYPES_GUN )
     {
         NC_STACK_ypagun *guno = (NC_STACK_ypagun *)bct;
 
-        sprintf(
-            buf,
-            "    gunbasis = %7.6f_%7.6f_%7.6f\n",
-            guno->_gunBasis.x,
-            guno->_gunBasis.y,
-            guno->_gunBasis.z);
-
-        fil->write(buf, strlen(buf));
+        fil->printf("    gunbasis = %7.6f_%7.6f_%7.6f\n",
+                    guno->_gunBasis.x,
+                    guno->_gunBasis.y,
+                    guno->_gunBasis.z);
     }
     return 1;
 }
 
 int yw_write_commander(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
-    sprintf(buf, "\nbegin_commander %d\n", bct->_vehicleID);
-    fil->write(buf, strlen(buf));
+    fil->printf("\nbegin_commander %d\n", bct->_vehicleID);
 
     if ( !yw_write_bact(bct, fil) )
         return 0;
@@ -892,18 +634,14 @@ int yw_write_commander(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
     if ( !yw_write_gun(bct, fil) )
         return 0;
 
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("end\n\n");
 
     return 1;
 }
 
 int yw_write_slave(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
-    sprintf(buf, "\nbegin_slave %d\n", bct->_vehicleID);
-    fil->write(buf, strlen(buf));
+    fil->printf("\nbegin_slave %d\n", bct->_vehicleID);
 
     if ( !yw_write_bact(bct, fil) )
         return 0;
@@ -911,28 +649,22 @@ int yw_write_slave(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
     if ( !yw_write_gun(bct, fil) )
         return 0;
 
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("end\n\n");
 
     return 1;
 }
 
 int yw_write_extraviewer(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
     if ( bct->_bact_type == BACT_TYPES_GUN )
     {
         int v7 = -1;
-
-        sprintf(buf, "\nbegin_extraviewer\n");
-        fil->write(buf, strlen(buf));
-
-        NC_STACK_yparobo *roboo = bct->_host_station;
+        
+        fil->printf("\nbegin_extraviewer\n");
 
         for (int i = 0; i < 8; i++)
         {
-            if ( roboo->_roboGuns[i].gun_obj == bct )
+            if ( bct->_host_station->_roboGuns[i].gun_obj == bct )
             {
                 v7 = i;
                 break;
@@ -941,14 +673,9 @@ int yw_write_extraviewer(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
 
         if ( v7 >= 0 )
         {
-            sprintf(buf, "    kind = robogun\n");
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "    number = %d\n", v7);
-            fil->write(buf, strlen(buf));
-
-            sprintf(buf, "end\n\n");
-            fil->write(buf, strlen(buf));
+            fil->printf("    kind = robogun\n");
+            fil->printf("    number = %d\n", v7);
+            fil->printf("end\n\n");
             return 1;
         }
 
@@ -957,82 +684,75 @@ int yw_write_extraviewer(NC_STACK_ypabact *bct, FSMgr::FileHandle *fil)
     return 0;
 }
 
-int yw_write_units(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
+bool NC_STACK_ypaworld::yw_write_units(FSMgr::FileHandle *fil)
 {
-    bact_node *station = (bact_node *)yw->bact_list.tailpred;
-    while (station->prev)
+    for ( World::RefBactList::reverse_iterator staIt = _unitsList.rbegin(); staIt != _unitsList.rend(); staIt++ )
     {
-        if ( station->bact->_status != BACT_STATUS_DEAD )
+        NC_STACK_ypabact *station = *staIt;
+        
+        if ( station->_status != BACT_STATUS_DEAD )
         {
-            if ( !yw_write_robo(yw, (NC_STACK_yparobo *)station->bact, fil) )
-                return 0;
+            if ( !yw_write_robo((NC_STACK_yparobo *)station, fil) )
+                return false;
 
-            bact_node *commander = (bact_node *)station->bact->_subjects_list.tailpred;
-
-            while ( commander->prev )
+            for ( World::RefBactList::reverse_iterator comIt = station->_kidList.rbegin(); comIt != station->_kidList.rend(); comIt++ )
             {
-                int a4 = 0;
+                NC_STACK_ypabact *commander = *comIt;
+                bool a4 = false;
 
-                if ( commander->bact->_bact_type == BACT_TYPES_GUN )
+                if ( commander->_bact_type == BACT_TYPES_GUN )
                 {
-                    NC_STACK_ypagun *gun = dynamic_cast<NC_STACK_ypagun *>( commander->bact );
+                    NC_STACK_ypagun *gun = dynamic_cast<NC_STACK_ypagun *>( commander );
                     a4 = gun->IsRoboGun();
                 }
 
                 if ( !a4 )
                 {
-                    if ( !yw_write_commander(commander->bact, fil) )
-                        return 0;
+                    if ( !yw_write_commander(commander, fil) )
+                        return false;
                 }
                 else
                 {
-                    int v8 = commander->bact->getBACT_viewer();
+                    int v8 = commander->getBACT_viewer();
 
                     if ( v8 )
                     {
-                        if ( !yw_write_extraviewer(commander->bact, fil) )
-                            return 0;
+                        if ( !yw_write_extraviewer(commander, fil) )
+                            return false;
                     }
                 }
-
-                bact_node *slave = (bact_node *)commander->bact->_subjects_list.tailpred;
-
-                while ( slave->prev )
+                
+                for ( World::RefBactList::reverse_iterator slvIt = commander->_kidList.rbegin(); slvIt != commander->_kidList.rend(); slvIt++ )
                 {
-                    int v9 = 0;
-                    if ( slave->bact->_bact_type == BACT_TYPES_GUN )
+                    NC_STACK_ypabact *slave = *slvIt;
+                    bool v9 = false;
+                    if ( slave->_bact_type == BACT_TYPES_GUN )
                     {
-                        NC_STACK_ypagun *gun = dynamic_cast<NC_STACK_ypagun *>( slave->bact );
+                        NC_STACK_ypagun *gun = dynamic_cast<NC_STACK_ypagun *>( slave );
                         v9 = gun->IsRoboGun();
                     }
 
                     if ( !v9 )
                     {
-                        if ( !yw_write_slave(slave->bact, fil) )
-                            return 0;
+                        if ( !yw_write_slave(slave, fil) )
+                            return false;
                     }
                     else
                     {
-                        int v10 = slave->bact->getBACT_viewer();
+                        int v10 = slave->getBACT_viewer();
 
                         if ( v10 )
                         {
-                            if ( !yw_write_extraviewer(slave->bact, fil) )
-                                return 0;
+                            if ( !yw_write_extraviewer(slave, fil) )
+                                return false;
                         }
                     }
-
-                    slave = (bact_node *)slave->prev;
                 }
-
-                commander = (bact_node *)commander->prev;
             }
         }
-
-        station = (bact_node *)station->prev;
     }
 
-    return 1;
+    return true;
 }
 
 int yw_write_wunderinfo(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
@@ -1042,7 +762,7 @@ int yw_write_wunderinfo(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
     size_t i = 0;
     for ( const MapGem &gem : yw->_Gems )
     {
-        if ( yw->cells[gem.SecX + gem.SecY * yw->sectors_maxX2].w_type != 4 )
+        if ( yw->_cells[gem.SecX + gem.SecY * yw->_mapWidth].w_type != 4 )
             fil->printf("    disablegem %d\n", i);
 
         i++;
@@ -1054,38 +774,24 @@ int yw_write_wunderinfo(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 
 int yw_write_kwfactor(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
-    sprintf(buf, "\nbegin_kwfactor\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("\nbegin_kwfactor\n");
 
     for (int i = 0; i < 256; i++)
     {
-        yw_field34 *kw = &yw->field_34[i];
+        yw_field34 *kw = &yw->_powerStations[i];
         if ( kw->p_cell )
-        {
-            sprintf(buf, "    kw = %d_%d_%d\n", kw->x, kw->y, kw->power_2);
-            fil->write(buf, strlen(buf));
-        }
+            fil->printf("    kw = %d_%d_%d\n", kw->x, kw->y, kw->power_2);
     }
-
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    
+    fil->printf("end\n\n");
     return 1;
 }
 
 int yw_write_globals(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 {
-    char buf[300];
-
-    sprintf(buf, "\nbegin_globals\n");
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "    time = %d\n", yw->timeStamp);
-    fil->write(buf, strlen(buf));
-
-    sprintf(buf, "end\n\n");
-    fil->write(buf, strlen(buf));
+    fil->printf("\nbegin_globals\n");
+    fil->printf("    time = %d\n", yw->timeStamp);
+    fil->printf("end\n\n");
     return 1;
 }
 

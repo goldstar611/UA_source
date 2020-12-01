@@ -130,15 +130,13 @@ public:
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t button_func64(button_64_arg *arg);
     virtual size_t button_func65(int butID);
     virtual size_t button_func66(button_66arg *arg);
     virtual size_t button_func67(button_66arg *arg);
     virtual size_t Show(); // Part of 68th method
     virtual size_t Hide(); // Part of 68th method
-    virtual ResCode button_func69(struC5 *arg);
+    virtual ResCode button_func69(InputState *arg);
     virtual size_t button_func70(void *);
     bool button_func71(int butID, const std::string &field_4, const std::string &field_8);
     bool button_func71(int butID, const std::string &field_4);
@@ -148,7 +146,6 @@ public:
     size_t button_func75(int butid);
     virtual size_t button_func76(button_arg76 *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_button() {
         clear();
         field_d8.reserve(ClickBox::RESERVED);
@@ -156,8 +153,8 @@ public:
     };
     virtual ~NC_STACK_button() {};
 
-    virtual const char * getClassName() {
-        return "button.class";
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -178,7 +175,7 @@ public:
     virtual void setBTN_y(int);
     virtual void setBTN_w(int);
     virtual void setBTN_h(int);
-    virtual void setBTN_chars(const char *);
+    virtual void setBTN_chars(const std::string &);
 
     virtual int getBTN_x();
     virtual int getBTN_y();

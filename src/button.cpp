@@ -45,28 +45,28 @@ size_t NC_STACK_button::func0(IDVList &stak)
     field_19D = 99;
     field_19E = 32;
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case BTN_ATT_X:
-                setBTN_x(val.value.i_data);
+                setBTN_x(val.Get<int32_t>());
                 break;
             case BTN_ATT_Y:
-                setBTN_y(val.value.i_data);
+                setBTN_y(val.Get<int32_t>());
                 break;
             case BTN_ATT_W:
-                setBTN_w(val.value.i_data);
+                setBTN_w(val.Get<int32_t>());
                 break;
             case BTN_ATT_H:
-                setBTN_h(val.value.i_data);
+                setBTN_h(val.Get<int32_t>());
                 break;
             case BTN_ATT_CHARS:
-                setBTN_chars((const char *)val.value.p_data);
+                setBTN_chars( val.Get<std::string>() );
                 break;
 
             default:
@@ -103,79 +103,6 @@ size_t NC_STACK_button::func1()
     return NC_STACK_nucleus::func1();
 }
 
-size_t NC_STACK_button::func2(IDVList &stak)
-{
-    NC_STACK_nucleus::func2(stak);
-
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case BTN_ATT_X:
-                setBTN_x(val.value.i_data);
-                break;
-            case BTN_ATT_Y:
-                setBTN_y(val.value.i_data);
-                break;
-            case BTN_ATT_W:
-                setBTN_w(val.value.i_data);
-                break;
-            case BTN_ATT_H:
-                setBTN_h(val.value.i_data);
-                break;
-            case BTN_ATT_CHARS:
-                setBTN_chars((const char *)val.value.p_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return 1;
-}
-
-size_t NC_STACK_button::func3(IDVList &stak)
-{
-    NC_STACK_nucleus::func3(stak);
-
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case BTN_ATT_X:
-                *(int *)val.value.p_data = getBTN_x();
-                break;
-            case BTN_ATT_Y:
-                *(int *)val.value.p_data = getBTN_y();
-                break;
-            case BTN_ATT_W:
-                *(int *)val.value.p_data = getBTN_w();
-                break;
-            case BTN_ATT_H:
-                *(int *)val.value.p_data = getBTN_h();
-                break;
-            case BTN_ATT_PBTN:
-                *(NC_STACK_button **)val.value.p_data = this;
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return 1;
-}
 
 // Update slider
 void NC_STACK_button::sub_436F58(NC_STACK_button *btn, button_str2 *sbt)
@@ -419,7 +346,7 @@ size_t NC_STACK_button::Hide()
     return 1;
 }
 
-NC_STACK_button::ResCode NC_STACK_button::button_func69(struC5 *arg)
+NC_STACK_button::ResCode NC_STACK_button::button_func69(InputState *arg)
 {
     ResCode result = ResCode(0);
 
@@ -480,7 +407,7 @@ NC_STACK_button::ResCode NC_STACK_button::button_func69(struC5 *arg)
                     if (it->flags & FLAG_PRESSED)
                         result = ResCode(it->pressed_id, it->button_id);
 
-                    int v21 = (arg->ClickInf.move.screenPos.x - sbttt->scrDownX) * (sbttt->max - sbttt->min + 1);
+                    int v21 = (arg->ClickInf.move.ScreenPos.x - sbttt->scrDownX) * (sbttt->max - sbttt->min + 1);
 
                     sbttt->value = sbttt->oldValue + v21 / it->width;
 
@@ -563,17 +490,17 @@ NC_STACK_button::ResCode NC_STACK_button::button_func69(struC5 *arg)
                     if ( arg->ClickInf.flag & ClickBoxInf::FLAG_BTN_DOWN )
                     {
                         Slider *sbttt = sbt.field_41C;
-                        if ( arg->ClickInf.ldw_pos.btnPos.x < sbttt->field_6_ )
+                        if ( arg->ClickInf.ldw_pos.BtnPos.x < sbttt->field_6_ )
                         {
                             sbttt->pressPart = 1;
                             if ( sbttt->value > sbttt->min )
                                 sbttt->value -= 1;
                         }
-                        else if ( arg->ClickInf.ldw_pos.btnPos.x <= sbttt->field_8_ )
+                        else if ( arg->ClickInf.ldw_pos.BtnPos.x <= sbttt->field_8_ )
                         {
                             sbttt->pressPart = 2;
                             sbttt->oldValue = sbttt->value;
-                            sbttt->scrDownX = arg->ClickInf.ldw_pos.screenPos.x;
+                            sbttt->scrDownX = arg->ClickInf.ldw_pos.ScreenPos.x;
                         }
                         else
                         {
@@ -1011,12 +938,11 @@ void NC_STACK_button::setBTN_h(int _h)
     h = _h;
 }
 
-void NC_STACK_button::setBTN_chars(const char *chrs)
+void NC_STACK_button::setBTN_chars(const std::string &chrs)
 {
-    const uint8_t *v4 = (const uint8_t *)chrs;
-    field_19c = v4[0];
-    field_19D = v4[1];
-    field_19E = v4[2];
+    field_19c = (uint8_t)chrs[0];
+    field_19D = (uint8_t)chrs[1];
+    field_19E = (uint8_t)chrs[2];
 }
 
 
@@ -1038,56 +964,4 @@ int NC_STACK_button::getBTN_w()
 int NC_STACK_button::getBTN_h()
 {
     return h;
-}
-
-
-size_t NC_STACK_button::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return (size_t)func2( *(IDVList *)data );
-    case 3:
-        return (size_t)func3( *(IDVList *)data );
-    case 64:
-        return (size_t)button_func64( (button_64_arg *)data );
-    case 65:
-        return (size_t)button_func65( (size_t)data );
-    case 66:
-        return (size_t)button_func66( (button_66arg *)data );
-    case 67:
-        return (size_t)button_func67( (button_66arg *)data );
-    case 68:
-        if ((bool)data)
-            return Show();
-        else
-            return Hide();
-    case 69:
-    {
-        ResCode r = button_func69( (struC5 *)data );
-        return (size_t) (r.code | (r.btn << 16));
-    }
-    case 70:
-        return (size_t)button_func70( (void *)data );
-    case 71:
-        return false;//(size_t)button_func71( (button_71arg *)data );
-    case 72:
-        return (size_t)button_func72( (size_t )data );
-    case 73:
-        button_func73( (button_66arg *)data );
-        return 1;
-    case 74:
-        return (size_t)button_func74( (size_t)data );
-    case 75:
-        return (size_t)button_func75( (size_t)data );
-    case 76:
-        return (size_t)button_func76( (button_arg76 *)data );
-    default:
-        break;
-    }
-    return NC_STACK_nucleus::compatcall(method_id, data);
 }

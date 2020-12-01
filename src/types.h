@@ -7,17 +7,20 @@
 
 
 struct cellArea;
-struct NC_STACK_ypabact;
+class NC_STACK_ypabact;
+class NC_STACK_ypamissile;
 
 namespace Engine
 {
 typedef std::list< std::string > StringList;
 
-};
+}
 
 namespace World
 {
-typedef RefList<NC_STACK_ypabact *> CellBactList;
+typedef RefList<NC_STACK_ypabact *> RefBactList;
+typedef std::list<NC_STACK_ypabact *> BactList;
+typedef std::list<NC_STACK_ypamissile *> MissileList;
 
 struct player_status
 {

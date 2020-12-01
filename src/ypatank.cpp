@@ -32,16 +32,16 @@ size_t NC_STACK_ypatank::func0(IDVList &stak)
 
     _tankFlags = (FLAG_TANK_TIP | FLAG_TANK_ROTWAIT);
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case TANK_ATT_TIP:
-                setTANK_tip( val.value.i_data );
+                setTANK_tip( val.Get<int32_t>() );
                 break;
 
             default:
@@ -63,41 +63,16 @@ size_t NC_STACK_ypatank::func2(IDVList &stak)
 {
     NC_STACK_ypabact::func2(stak);
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case TANK_ATT_TIP:
-                setTANK_tip( val.value.i_data );
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return 1;
-}
-
-size_t NC_STACK_ypatank::func3(IDVList &stak)
-{
-    NC_STACK_ypabact::func3(stak);
-
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case TANK_ATT_TIP:
-                *(int *)val.value.p_data = getTANK_tip();
+                setTANK_tip( val.Get<int32_t>() );
                 break;
 
             default:
@@ -860,7 +835,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
             }
         }
 
-        float v85 = -arg->inpt->sliders_vars[3] * _maxrot * v90 * 2.0;
+        float v85 = -arg->inpt->Sliders[3] * _maxrot * v90 * 2.0;
 
         if ( fabs(v85) > 0.0 )
             _rotation = mat3x3::RotateY(v85) * _rotation;
@@ -878,7 +853,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
             }
         }
 
-        float v88 = arg->inpt->sliders_vars[4];
+        float v88 = arg->inpt->Sliders[4];
         float v75 = fabs(v88);
 
         if ( v88 > 1.0 )
@@ -890,7 +865,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
 
         float v78;
 
-        if ( arg->inpt->but_flags & 0x80000000 )
+        if ( arg->inpt->Buttons.Is(31) )
             v78 = _force * v75;
         else
             v78 = _force;
@@ -903,7 +878,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
         if ( fabs(v88) > 0.001 )
             _status_flg |= BACT_STFLAG_MOVE;
 
-        _gun_angle_user += v90 * arg->inpt->sliders_vars[5];
+        _gun_angle_user += v90 * arg->inpt->Sliders[5];
 
         if ( _gun_angle_user < -0.3 )
             _gun_angle_user = -0.3;
@@ -912,7 +887,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
             _gun_angle_user = 0.8;
 
 
-        _gun_leftright = _gun_leftright - v90 * arg->inpt->sliders_vars[15];
+        _gun_leftright = _gun_leftright - v90 * arg->inpt->Sliders[15];
 
         if ( _gun_leftright < -0.8 )
             _gun_leftright = -0.8;
@@ -949,7 +924,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
             arg79.tgType = BACT_TGT_TYPE_UNIT;
         }
 
-        if ( arg->inpt->but_flags & 1 || arg->inpt->but_flags & 2 )
+        if ( arg->inpt->Buttons.IsAny({0, 1}) )
         {
             arg79.direction = v67;
             arg79.weapon = _weapon;
@@ -962,7 +937,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
 
             arg79.start_point.y = _fire_pos.y;
             arg79.start_point.z = _fire_pos.z;
-            arg79.flags = (arg->inpt->but_flags & 2) != 0;
+            arg79.flags = (arg->inpt->Buttons.Is(1) ? 1 : 0);
             arg79.flags |= 2;
 
             LaunchMissile(&arg79);
@@ -972,7 +947,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
         {
             if ( _status_flg & BACT_STFLAG_FIRE )
             {
-                if ( !(arg->inpt->but_flags & 4) )
+                if ( !(arg->inpt->Buttons.Is(2)) )
                 {
                     setState_msg arg78;
                     arg78.setFlags = 0;
@@ -983,7 +958,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
                 }
             }
 
-            if ( arg->inpt->but_flags & 4 )
+            if ( arg->inpt->Buttons.Is(2) )
             {
                 if ( !(_status_flg & BACT_STFLAG_FIRE) )
                 {
@@ -1009,7 +984,7 @@ void NC_STACK_ypatank::User_layer(update_msg *arg)
         {
             move_msg arg74;
 
-            if ( arg->inpt->but_flags & 8 )
+            if ( arg->inpt->Buttons.Is(3) )
             {
                 _thraction = 0;
 
@@ -1779,15 +1754,7 @@ size_t NC_STACK_ypatank::CheckFireAI(bact_arg101 *arg)
     {
         if ( v43 )
         {
-            if ( v43 == 16 )
-            {
-                if ( v37 < 1200.0 && v38 > 0.93 )
-                {
-                    if ( v34.y > -0.85 && v34.y < 0.2 )
-                        return 1;
-                }
-            }
-            else if ( v37 < 1200.0 && v38 > 0.93 )
+            if ( v37 < 1200.0 && v38 > 0.93 )
             {
                 if ( v34.y > -0.85 && v34.y < 0.2 )
                     return 1;
@@ -1802,15 +1769,7 @@ size_t NC_STACK_ypatank::CheckFireAI(bact_arg101 *arg)
     {
         if ( v43 )
         {
-            if ( v43 == 16 )
-            {
-                if ( v37 < 1200.0 && v38 > 0.91 )
-                {
-                    if ( v34.y > -0.4 && v34.y < 0.3 )
-                        return 1;
-                }
-            }
-            else if ( v37 < 1200.0 && v38 > 0.91 )
+            if ( v37 < 1200.0 && v38 > 0.91 )
             {
                 if ( v34.y > -0.4 && v34.y < 0.3 )
                     return 1;
@@ -2330,50 +2289,3 @@ int NC_STACK_ypatank::getTANK_tip()
 }
 
 
-
-size_t NC_STACK_ypatank::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return func2( *(IDVList *)data );
-    case 3:
-        return func3( *(IDVList *)data );
-    case 70:
-        AI_layer3( (update_msg *)data );
-        return 1;
-    case 71:
-        User_layer( (update_msg *)data );
-        return 1;
-    case 74:
-        Move( (move_msg *)data );
-        return 1;
-    case 80:
-        return (size_t)SetPosition( (bact_arg80 *)data );
-    case 83:
-        ApplyImpulse( (bact_arg83 *)data );
-        return 1;
-    case 87:
-        return (size_t)CollisionWithBact( (int)(size_t)data );
-    case 88:
-        Recoil( (bact_arg88 *)data );
-        return 1;
-    case 96:
-        Renew();
-        return 1;
-    case 101:
-        return (size_t)CheckFireAI( (bact_arg101 *)data );
-    case 111:
-        return (size_t)TestTargetSector( (NC_STACK_ypabact *)data );
-    case 114:
-        CorrectPositionOnLand();
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_ypabact::compatcall(method_id, data);
-}

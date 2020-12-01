@@ -59,7 +59,7 @@ void reset_tileset(char **pos, uint8_t tileset);
 //Op 17:
 void op17(char **pos, int16_t arg);
 //Op 18: Add text for output
-void add_txt(char **pos, int16_t block_width, uint16_t flag, const char *string);
+void add_txt(char **pos, int16_t block_width, uint16_t flag, const std::string &string);
 //Op 19: Copy current output xy position for text output
 void copy_position(char **pos);
 //Op 20: Set flag bitfield for text output
@@ -96,13 +96,13 @@ struct ColumnItem
 
 
 // funcs related
-char *FormateClippedText(TileMap *, char *curpos, const char *str, int width_space, char chr);
-char *FormateCenteredSkipableItem(TileMap *, char *in, const char *str, int width);
-char *TextRelWidthItem(TileMap *, char *pos, const char *txt, int wdth, int arg);
+char *FormateClippedText(TileMap *, char *curpos, const std::string &str, int width_space, char chr);
+char *FormateCenteredSkipableItem(TileMap *, char *in, const std::string &str, int width);
+char *TextRelWidthItem(TileMap *, char *pos, const std::string &txt, int wdth, int arg);
 
 char *FormateColumnItem(NC_STACK_ypaworld *yw, char *cmdbuf, int num, ColumnItem *a4);
 char *FormateTextAlignedClippedString(NC_STACK_ypaworld *yw, char *cmdbuf, ColumnItem *arg);
 char *FormateAlignedClippedString(NC_STACK_ypaworld *yw, char *cmdbuf, ColumnItem *arg);
-};
+}
 
 #endif //FONT_H_INCLUDED

@@ -37,21 +37,18 @@ class NC_STACK_ilbm: public NC_STACK_bitmap
 {
 public:
     virtual size_t func0(IDVList &stak);
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t func5(IFFile **file);
     virtual size_t func6(IFFile **pmfile);
     virtual rsrc * rsrc_func64(IDVList &stak);
     virtual size_t rsrc_func66(rsrc_func66_arg *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ilbm() {
         memset(&stack__ilbm, 0, sizeof(stack__ilbm));
     };
     virtual ~NC_STACK_ilbm() {};
-
-    virtual const char * getClassName() {
-        return "ilbm.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

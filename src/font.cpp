@@ -269,12 +269,12 @@ void FontUA::op17(char **pos, int16_t arg)
     FontUA::store_s16(pos, arg);
 }
 
-void FontUA::add_txt(char **pos, int16_t block_width, uint16_t flag, const char *string)
+void FontUA::add_txt(char **pos, int16_t block_width, uint16_t flag, const std::string &string)
 {
     FontUA::store_u16(pos, 18);
     FontUA::store_s16(pos, block_width);
     FontUA::store_u16(pos, flag);
-    FontUA::store_string(pos, string);
+    FontUA::store_string(pos, string.c_str());
 }
 
 void FontUA::copy_position(char **pos)
@@ -310,7 +310,7 @@ void FontUA::set_txtColor(char **pos, uint8_t r, uint8_t g, uint8_t b)
 
 // Funcs
 
-char * FontUA::FormateClippedText(TileMap *, char *curpos, const char *str, int width_space, char space_chr)
+char * FontUA::FormateClippedText(TileMap *, char *curpos, const std::string &str, int width_space, char space_chr)
 {
     char *tmp = curpos;
 
@@ -341,7 +341,7 @@ char * FontUA::FormateClippedText(TileMap *, char *curpos, const char *str, int 
     return tmp;
 }
 
-char * FontUA::FormateCenteredSkipableItem(TileMap *, char *in, const char *str, int width)
+char * FontUA::FormateCenteredSkipableItem(TileMap *, char *in, const std::string &str, int width)
 {
     char *cur = in;
     if ( width > 0 )
@@ -352,7 +352,7 @@ char * FontUA::FormateCenteredSkipableItem(TileMap *, char *in, const char *str,
     return cur;
 }
 
-char * FontUA::TextRelWidthItem(TileMap *, char *pos, const char *txt, int wdth, int arg)
+char * FontUA::TextRelWidthItem(TileMap *, char *pos, const std::string &txt, int wdth, int arg)
 {
     char *tmp = pos;
 
@@ -429,7 +429,7 @@ char * FontUA::FormateTextAlignedClippedString(NC_STACK_ypaworld *yw, char *cmdb
             v20 = 4;
         }
 
-        FontUA::add_txt(&tmp, v4, v20, arg->txt.c_str());
+        FontUA::add_txt(&tmp, v4, v20, arg->txt);
     }
 
     if ( arg->flags & 2 )
@@ -450,14 +450,13 @@ char *FontUA::FormateAlignedClippedString(NC_STACK_ypaworld *yw, char *cmdbuf, C
 
     int txtWidth = 0;
     
-    for ( auto c : arg->txt )
-        txtWidth += tset->map[ c ].w;
+    txtWidth += tset->GetWidth(arg->txt);
 
     int freeWidth = arg->width - txtWidth;
     if ( arg->flags & 1 )
-        freeWidth -= tset->map[arg->prefixChar].w;
+        freeWidth -= tset->GetWidth(arg->prefixChar);
     if ( arg->flags & 2 )
-        freeWidth -= tset->map[arg->postfixChar].w;
+        freeWidth -= tset->GetWidth(arg->postfixChar);
 
     char *tmp = cmdbuf;
     FontUA::select_tileset(&tmp, arg->fontID);
@@ -511,12 +510,12 @@ char *FontUA::FormateAlignedClippedString(NC_STACK_ypaworld *yw, char *cmdbuf, C
     {
         chr = arg->txt[cI];
         cI++;
-        v28 -= tset->map[(uint8_t)chr].w;
+        v28 -= tset->GetWidth(chr);
     }
 
     if ( v28 < 0 )
     {
-        FontUA::set_xoff(&tmp, v28 + tset->map[(uint8_t)chr].w);
+        FontUA::set_xoff(&tmp, v28 + tset->GetWidth(chr));
         FontUA::store_u8(&tmp, chr);
     }
 
@@ -550,12 +549,12 @@ char *FontUA::FormateAlignedClippedString(NC_STACK_ypaworld *yw, char *cmdbuf, C
             chr = arg->txt[cI];
             cI++;
 
-            v16 -= tset->map[(uint8_t)chr].w;
+            v16 -= tset->GetWidth(chr);
             FontUA::store_u8(&tmp, chr);
         }
         if (chr)
         {
-            FontUA::set_xwidth(&tmp, v16 + tset->map[(uint8_t)chr].w);
+            FontUA::set_xwidth(&tmp, v16 + tset->GetWidth(chr));
             FontUA::store_u8(&tmp, chr);
         }
     }

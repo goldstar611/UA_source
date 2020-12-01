@@ -3,9 +3,9 @@
 
 #include <list>
 
-struct NC_STACK_ypaworld;
+class NC_STACK_ypaworld;
 
-struct GuiBase;
+class GuiBase;
 typedef std::list<GuiBase *> GuiBaseList;
 
 class GuiBase : public ClickBox
@@ -172,7 +172,7 @@ public:
     void FormateItemBlock(NC_STACK_ypaworld *yw);
     void ScrollParamsFromEntries(NC_STACK_ypaworld *yw);
 
-    void InputHandle(NC_STACK_ypaworld *yw, struC5 *struc);
+    void InputHandle(NC_STACK_ypaworld *yw, InputState *struc);
 
     void PosOnSelected(int a2);
 

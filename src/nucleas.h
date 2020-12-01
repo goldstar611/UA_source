@@ -10,10 +10,12 @@
 #include "idvpair.h"
 #include "IFFile.h"
 
+
 class NC_STACK_nucleus;
 
 namespace Nucleus
 {
+    
 struct ClassDescr
 {
     const std::string _classname;
@@ -21,6 +23,58 @@ struct ClassDescr
 
     ClassDescr(const std::string &clsname,  NC_STACK_nucleus *(*newinst)() );
 };
+
+}
+
+class NC_STACK_nucleus
+{
+public:
+    static constexpr const char * DefaultIniFile {"nucleus.ini"};
+public:
+    virtual size_t func0(IDVList &stak);
+    virtual size_t func1();
+    virtual size_t func5(IFFile **file);
+    virtual size_t func6(IFFile **file);
+
+    NC_STACK_nucleus() {
+        NAME.clear();
+    };
+    virtual ~NC_STACK_nucleus() {};
+
+    virtual const std::string &GetClassName() const {
+        return description._classname;
+    };
+
+    static NC_STACK_nucleus * newinstance() {
+        return new NC_STACK_nucleus();
+    };
+
+    enum NC_ATT
+    {
+        NC_ATT_NAME = 0x80000000,
+        NC_ATT_CLASSNAME = 0x80000002
+    };
+
+    //Set
+    virtual void setName(const std::string&);
+
+    //Get
+    virtual const std::string& getName() const;
+
+    //Non-virtual methods
+    static NC_STACK_nucleus *READ_OBJT(IFFile *mfile);
+
+public:
+    //Data
+    static const Nucleus::ClassDescr description;
+
+public:
+    std::string NAME;
+};
+
+
+namespace Nucleus
+{
 
 class ClassList: public std::list<ClassDescr>
 {
@@ -52,7 +106,14 @@ T* CInit(IDVList &stak)
     }
 
     return tmp;
-};
+}
+
+template<class T>
+T* CInit(IDVList::TInitList lst)
+{
+    IDVList stak(lst);
+    return CInit<T>(stak);
+}
 
 /***
     Default class constructor when you exactly
@@ -75,7 +136,7 @@ T* CInit()
     }
 
     return tmp;
-};
+}
 
 
 /***
@@ -86,6 +147,7 @@ T* CInit()
 ***/
 NC_STACK_nucleus *CFInit(const std::string &classname, IDVList &stak);
 NC_STACK_nucleus *CFInit(const std::string &classname);
+NC_STACK_nucleus *CFInit(const std::string &classname, IDVList::TInitList lst);
 
 
 /***
@@ -111,7 +173,14 @@ T *CTFInit(const std::string &classname, IDVList &stak)
     }
 
     return tInst;
-};
+}
+
+template <class T>
+T *CTFInit(const std::string &classname, IDVList::TInitList lst)
+{
+    IDVList stak(lst);
+    return CTFInit<T>(classname, stak);
+}
 
 template <class T>
 T *CTFInit(const std::string &classname)
@@ -122,59 +191,11 @@ T *CTFInit(const std::string &classname)
 
 
 void Delete(NC_STACK_nucleus *clas);
-};
+}
 
 
 
 
-
-
-class NC_STACK_nucleus
-{
-public:
-    virtual size_t func0(IDVList &stak);
-    virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
-    virtual size_t func5(IFFile **file);
-    virtual size_t func6(IFFile **file);
-
-    virtual size_t compatcall(int method_id, void *data);
-    NC_STACK_nucleus() {
-        NAME.clear();
-    };
-    virtual ~NC_STACK_nucleus() {};
-
-    virtual const char * getClassName() {
-        return "nucleus.class";
-    };
-
-    static NC_STACK_nucleus * newinstance() {
-        return new NC_STACK_nucleus();
-    };
-
-    enum NC_ATT
-    {
-        NC_ATT_NAME = 0x80000000,
-        NC_ATT_CLASSNAME = 0x80000002
-    };
-
-    //Set
-    virtual void setName(const std::string&);
-
-    //Get
-    virtual const std::string& getName() const;
-
-    //Non-virtual methods
-    static NC_STACK_nucleus *READ_OBJT(IFFile *mfile);
-
-public:
-    //Data
-    static const Nucleus::ClassDescr description;
-
-public:
-    std::string NAME;
-};
 
 int delete_class_obj(NC_STACK_nucleus *cls);
 

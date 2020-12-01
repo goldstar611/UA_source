@@ -28,7 +28,7 @@ TileMap * NC_STACK_ypaworld::yw_LoadFont(const std::string &fontname)
     std::string buf;
     if ( !fil->ReadLine(&buf) )
     {
-        ypa_log_out("yw_LoadFont(): font %s, font definition file corrupt.\n", fontname);
+        ypa_log_out("yw_LoadFont(): font %s, font definition file corrupt.\n", fontname.c_str());
         delete tileset;
         delete fil;
         return NULL;
@@ -43,22 +43,20 @@ TileMap * NC_STACK_ypaworld::yw_LoadFont(const std::string &fontname)
     if ( !tk.GetNext(&bitmap_name) || !tk.GetNext(&fntHeight) )
     {
         delete tileset;
-        ypa_log_out("yw_LoadFont(): font %s, font definition file corrupt.\n", fontname);
+        ypa_log_out("yw_LoadFont(): font %s, font definition file corrupt.\n", fontname.c_str());
         delete fil;
         return NULL;
     }
 
-    IDVList init_vals;
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, bitmap_name.c_str());
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_TRYSHARED, 0);
-    init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-    init_vals.Add(NC_STACK_ilbm::ATT_ALPHAPALETTE, 0);
-
-    tileset->img = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+    tileset->img = Nucleus::CInit<NC_STACK_ilbm>({
+        {NC_STACK_rsrc::RSRC_ATT_NAME, std::string(bitmap_name)},
+        {NC_STACK_rsrc::RSRC_ATT_TRYSHARED, (int32_t)0},
+        {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1},
+        {NC_STACK_ilbm::ATT_ALPHAPALETTE, (int32_t)0} });
     if ( !tileset->img )
     {
         delete tileset;
-        ypa_log_out("yw_LoadFont(): font %s, couldn't load fontpage %s.\n", fontname, bitmap_name);
+        ypa_log_out("yw_LoadFont(): font %s, couldn't load fontpage %s.\n", fontname.c_str(), bitmap_name.c_str());
         delete fil;
         return NULL;
     }
@@ -126,12 +124,10 @@ TileMap * NC_STACK_ypaworld::yw_LoadTileSet(const std::string &bitmap, Common::P
     if ( !tileset )
         return NULL;
 
-    IDVList init_vals;
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, bitmap.c_str());
-    init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1); // Speed up painting
-    init_vals.Add(NC_STACK_ilbm::ATT_ALPHAPALETTE, 0);
-
-    tileset->img = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+    tileset->img = Nucleus::CInit<NC_STACK_ilbm>({
+        {NC_STACK_rsrc::RSRC_ATT_NAME, std::string(bitmap)},
+        {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}, // Speed up painting
+        {NC_STACK_ilbm::ATT_ALPHAPALETTE, (int32_t)0} });
     if ( !tileset->img )
     {
         delete tileset;
@@ -173,7 +169,7 @@ TileMap * NC_STACK_ypaworld::yw_LoadTileSet(const std::string &bitmap, Common::P
 
 int NC_STACK_ypaworld::load_fonts_and_icons()
 {
-    const char *font_names[32] =
+    const std::array<std::string, 32> fontNames
     {
         "default.font", //0
         "maprobo.font",
@@ -211,10 +207,10 @@ int NC_STACK_ypaworld::load_fonts_and_icons()
 
     for (int i = 0; i < 32; i++)
     {
-        tiles[i] = yw_LoadFont(font_names[i]);
+        tiles[i] = yw_LoadFont(fontNames.at(i));
         if ( !tiles[i] )
         {
-            ypa_log_out("Could not load font (%s)", font_names[i]);
+            ypa_log_out("Could not load font (%s)", fontNames.at(i).c_str());
             return 0;
         }
 
@@ -487,7 +483,7 @@ int get_level_numb(const std::string &filename)
     if ( v10 < 1 || v10 >= 256 )
     {
         v10 = -1;
-        ypa_log_out("Invalid level num [valid: 0..127] for %s.\n", filename);
+        ypa_log_out("Invalid level num [valid: 0..127] for %s.\n", filename.c_str());
     }
     return v10;
 }
@@ -776,7 +772,7 @@ int yw_InitTooltips(NC_STACK_ypaworld *yw)
     return 1;
 }
 
-NC_STACK_base * sub_44AD8C(const char *fname)
+NC_STACK_base * sub_44AD8C(const std::string &fname)
 {
     NC_STACK_base *obj = Nucleus::CInit<NC_STACK_base>();
     if ( obj )
@@ -788,24 +784,23 @@ NC_STACK_base * sub_44AD8C(const char *fname)
             return NULL;
         }
 
-        char buf[512];
-        char basfl[300];
-
-        while ( fil->gets(buf, 512) )
+        std::string line;
+        while ( fil->ReadLine(&line) && !line.empty() && line[0] != '>' )
         {
-            char *v4 = strtok(buf, " #;\t\n");
+            size_t pos = line.find_first_of(" ;#\n\r");
+            if ( pos != std::string::npos )
+                line.erase(pos);
+            
+            if (line.empty())
+                continue;
 
-            if ( !v4 || *v4 == '>' )
-                break;
+            std::string basName = fmt::sprintf("rsrc:objects/%s", line);
 
-            strcpy(basfl, "rsrc:objects/");
-            strcat(basfl, v4);
-
-            NC_STACK_base *kid = NC_STACK_base::READ_BAS_FILE(basfl);
+            NC_STACK_base *kid = NC_STACK_base::READ_BAS_FILE(basName);
 
             if ( !kid )
             {
-                ypa_log_out("init: Could not load %s.\n", basfl);
+                ypa_log_out("init: Could not load %s.\n", basName.c_str());
                 delete fil;
                 delete_class_obj(obj);
                 return NULL;
@@ -903,9 +898,8 @@ int yw_parse_lego(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil, NC_STACK_base *
     }
 
     id = 0;
-    char line_buf[1024];
-
-    while ( fil->gets(line_buf, 1024) && line_buf[0] != '>' )
+    std::string line;
+    while ( fil->ReadLine(&line) && !line.empty() && line[0] != '>' )
     {
         cityBases *lego = &yw->legos[id];
 
@@ -915,52 +909,46 @@ int yw_parse_lego(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil, NC_STACK_base *
             return 0;
         }
 
-        char *v10 = strpbrk(line_buf, ";#\n\r");
-        if ( v10 )
-            *v10 = 0;
+        size_t pos = line.find_first_of(";#\n\r");
+        if ( pos != std::string::npos )
+            line.erase(pos);
 
-        if ( strtok(line_buf, " \t") ) // ignore base file name
+        Stok parse(line, " \t");
+        std::string token;
+        if ( parse.GetNext(&token) ) // ignore base file name
         {
-            char *v11 = strtok(0, " \t");
-            if ( !v11 )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            IDVList init_vals;
-            init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, v11);
-
-            NC_STACK_sklt *skelet = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+            NC_STACK_sklt *skelet = Nucleus::CInit<NC_STACK_sklt>({{NC_STACK_rsrc::RSRC_ATT_NAME, token}});
             if ( !skelet )
             {
-                ypa_log_out("Couldn't load sklt (%s)\n", v11);
+                ypa_log_out("Couldn't load sklt (%s)\n", token.c_str());
                 return 0;
             }
 
             lego->sklt_obj = skelet;
             lego->sklt_obj_intern = skelet->GetSkelet();
 
-            v11 = strtok(0, " \t");
-            if ( !v11 )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            lego->field_11 = strtol(v11, NULL, 0);
+            lego->field_11 = std::stol(token, NULL, 0);
 
-            v11 = strtok(0, " \t");
-            if ( !v11 )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            lego->field_12 = strtol(v11, NULL, 0);
+            lego->field_12 = std::stol(token, NULL, 0);
 
-            v11 = strtok(0, " \t");
-            if ( !v11 )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            lego->field_10 = strtol(v11, NULL, 0);
+            lego->field_10 = std::stol(token, NULL, 0);
 
-            v11 = strtok(0, " \t");
-            if ( !v11 )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            switch( strtol(v11, NULL, 0) )
+            switch( std::stol(token, NULL, 0) )
             {
             default:
             case 0:
@@ -979,27 +967,23 @@ int yw_parse_lego(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil, NC_STACK_base *
             int fxnumb = 0;
             while ( 1 )
             {
-                v11 = strtok(0, " \t");
-                if ( !v11 || fxnumb >= yw->fxnumber )
+                if ( !parse.GetNext(&token) || fxnumb >= yw->fxnumber )
                     break;
 
                 float x = 0.0;
                 float y = 0.0;
                 float z = 0.0;
 
-                lego->field_14[fxnumb] = strtol(v11, NULL, 0);
+                lego->field_14[fxnumb] = std::stol(token, NULL, 0);
 
-                v11 = strtok(0, " \t");
-                if ( v11 )
-                    x = strtof(v11, 0);
+                if ( parse.GetNext(&token) )
+                    x = std::stof(token, 0);
 
-                v11 = strtok(0, " \t");
-                if ( v11 )
-                    z = strtof(v11, 0);
+                if ( parse.GetNext(&token) )
+                    z = std::stof(token, 0);
 
-                v11 = strtok(0, " \t");
-                if ( v11 )
-                    y = strtof(v11, 0);
+                if ( parse.GetNext(&token) )
+                    y = std::stof(token, 0);
 
                 lego->field_24[fxnumb].pos_x = x;
                 lego->field_24[fxnumb].pos_y = -y;
@@ -1016,10 +1000,9 @@ int yw_parse_lego(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil, NC_STACK_base *
 
 int yw_parse_subSect(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 {
-    char buf[256];
-
     int id = 0;
-    while ( fil->gets(buf, 255) && buf[0] != '>' )
+    std::string line;
+    while ( fil->ReadLine(&line) && !line.empty() && line[0] != '>' )
     {
         if ( id >= 256 )
         {
@@ -1027,47 +1010,43 @@ int yw_parse_subSect(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
             return 0;
         }
 
-        char *endln = strpbrk(buf, ";#\n\r");
-        if ( endln )
-            *endln = 0;
+        size_t pos = line.find_first_of(";#\n\r");
+        if ( pos != std::string::npos )
+            line.erase(pos);
 
-        char *pp = strtok(buf, " \t");
-        if ( pp )
+        Stok parse(line, " \t");
+        std::string token;
+        if ( parse.GetNext(&token) )
         {
             subSec *ssec = &yw->subSectors[id];
 
-            ssec->health_models[0] = strtol(pp, NULL, 0);
+            ssec->health_models[0] = std::stol(token, NULL, 0);
 
-            pp = strtok(0, " \t");
-            if ( !pp )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            ssec->health_models[1] = strtol(pp, NULL, 0);
+            ssec->health_models[1] = std::stol(token, NULL, 0);
 
-            pp = strtok(0, " \t");
-            if ( !pp )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            ssec->health_models[2] = strtol(pp, NULL, 0);
+            ssec->health_models[2] = std::stol(token, NULL, 0);
 
-            pp = strtok(0, " \t");
-            if ( !pp )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            ssec->health_models[3] = strtol(pp, NULL, 0);
+            ssec->health_models[3] = std::stol(token, NULL, 0);
 
-            pp = strtok(0, " \t");
-            if ( !pp )
+            if ( !parse.GetNext(&token) )
                 return 0;
 
-            if ( *pp > '0' && *pp == '1' )
+            if ( token.at(0) > '0' && token.at(0) == '1' )
                 ssec->build_health = 255;
             else
                 ssec->build_health = 0;
 
-            pp = strtok(0, " \t");
-            if ( pp )
-                ssec->field_8 = strtol(pp, NULL, 0);
+            if ( parse.GetNext(&token) )
+                ssec->field_8 = std::stol(token, NULL, 0);
 
             id++;
         }
@@ -1077,60 +1056,55 @@ int yw_parse_subSect(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 
 int yw_parse_sektor(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
 {
-    char line_buf[512];
-    char buf[512];
-
-    while ( fil->gets(buf, 512) && buf[0] != '>' )
+    std::string line;
+    while ( fil->ReadLine(&line) && !line.empty() && line[0] != '>' )
     {
-        strcpy(line_buf, buf);
+        std::string tmp = line;
+        
+        size_t pos = tmp.find_first_of(";#\n\r");
+        if ( pos != std::string::npos )
+            tmp.erase(pos);
 
-        char *lnend = strpbrk(buf, ";#\n\r");
-        if ( lnend )
-            *lnend = 0;
-
-        char *pp = strtok(buf, " \t");
-        if ( pp )
+        Stok parse(tmp, " \t");
+        std::string token;
+        if ( parse.GetNext(&token) )
         {
-            secType *sektp = &yw->secTypes[ strtol(pp, NULL, 0) ];
+            secType *sektp = &yw->secTypes[ std::stol(token, NULL, 0) ];
 
-            pp = strtok(0, " \t");
-            if ( !pp )
+            if ( !parse.GetNext(&token) )
             {
-                ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line_buf);
+                ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line.c_str());
                 return 0;
             }
 
-            sektp->field_0 = strtol(pp, NULL, 0);
+            sektp->field_0 = std::stol(token, NULL, 0);
 
-            pp = strtok(0, " \t");
-            if ( !pp )
+            if ( !parse.GetNext(&token) )
             {
-                ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line_buf);
+                ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line.c_str());
                 return 0;
             }
 
-            sektp->field_1 = strtol(pp, NULL, 0);
+            sektp->field_1 = std::stol(token, NULL, 0);
 
-            pp = strtok(0, " \t");
-            if ( !pp )
+            if ( !parse.GetNext(&token) )
             {
-                ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line_buf);
+                ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line.c_str());
                 return 0;
             }
 
-            sektp->field_3 = strtol(pp, NULL, 0);
+            sektp->field_3 = std::stol(token, NULL, 0);
 
             memset(sektp->buildings, 0, sizeof(sektp->buildings));
 
             if ( sektp->field_0 == 1 )
             {
-                pp = strtok(0, " \t");
-                if ( !pp )
+                if ( !parse.GetNext(&token) )
                 {
-                    ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line_buf);
+                    ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line.c_str());
                     return 0;
                 }
-                sektp->buildings[0][0] = &yw->subSectors[ strtol(pp, NULL, 0) ];
+                sektp->buildings[0][0] = &yw->subSectors[ std::stol(token, NULL, 0) ];
             }
             else
             {
@@ -1138,14 +1112,13 @@ int yw_parse_sektor(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil)
                 {
                     for (int i = 0; i < 3; i++)
                     {
-                        pp = strtok(0, " \t");
-                        if ( !pp )
+                        if ( !parse.GetNext(&token) )
                         {
-                            ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line_buf);
+                            ypa_log_out("Error reading '%s', line '%s'.\n", "set.sdf", line.c_str());
                             return 0;
                         }
 
-                        sektp->buildings[i][2 - j] = &yw->subSectors[ strtol(pp, NULL, 0) ];
+                        sektp->buildings[i][2 - j] = &yw->subSectors[ std::stol(token, NULL, 0) ];
                     }
                 }
             }
@@ -1193,15 +1166,11 @@ int sub_44A97C(NC_STACK_ypaworld *yw, NC_STACK_base *base)
         }
     }
 
-    char rsr[256];
-    strcpy(rsr, get_prefix_replacement("rsrc"));
+    std::string oldRsrc = get_prefix_replacement("rsrc");
 
     set_prefix_replacement("rsrc", "data:mc2res");
 
-    IDVList init_vals;
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, "Skeleton/ColSide.sklt");
-
-    NC_STACK_sklt *tmp_skel = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+    NC_STACK_sklt *tmp_skel = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string("Skeleton/ColSide.sklt")}} );
     if ( !tmp_skel )
     {
         ypa_log_out("Couldn't create side collision sklt.\n");
@@ -1211,10 +1180,7 @@ int sub_44A97C(NC_STACK_ypaworld *yw, NC_STACK_base *base)
     yw->ColSide.skeleton = tmp_skel;
     yw->ColSide.skeleton_internal = yw->ColSide.skeleton->GetSkelet();
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, "Skeleton/ColCross.sklt");
-
-    tmp_skel = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+    tmp_skel = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string("Skeleton/ColCross.sklt")}} );
     if ( !tmp_skel )
     {
         ypa_log_out("Couldn't create cross collision sklt.\n");
@@ -1224,67 +1190,40 @@ int sub_44A97C(NC_STACK_ypaworld *yw, NC_STACK_base *base)
     yw->ColCross.skeleton = tmp_skel;
     yw->ColCross.skeleton_internal = yw->ColCross.skeleton->GetSkelet();
 
-    set_prefix_replacement("rsrc", rsr);
+    set_prefix_replacement("rsrc", oldRsrc);
 
     return 1;
 }
 
 int yw_InitMouseStuff(NC_STACK_ypaworld *yw)
 {
-    char rsr[256];
-
-    strcpy(rsr, get_prefix_replacement("rsrc"));
+    const std::array<std::string, 11> pointerFiles
+    {
+        "pointers/pointer.ilbm",
+        "pointers/cancel.ilbm",
+        "pointers/select.ilbm",
+        "pointers/attack.ilbm",
+        "pointers/goto.ilbm",
+        "pointers/disk.ilbm",
+        "pointers/new.ilbm",
+        "pointers/add.ilbm",
+        "pointers/control.ilbm",
+        "pointers/beam.ilbm",
+        "pointers/build.ilbm"
+    };
+    
+    std::string oldRsrc = get_prefix_replacement("rsrc");
     set_prefix_replacement("rsrc", "data:mc2res");
 
     for (int i = 0; i < 11; i++)
     {
-        const char *v5;
-        switch ( i )
-        {
-        case 1:
-            v5 = (const char *)"pointers/cancel.ilbm";
-            break;
-        case 2:
-            v5 = "pointers/select.ilbm";
-            break;
-        case 3:
-            v5 = "pointers/attack.ilbm";
-            break;
-        case 4:
-            v5 = "pointers/goto.ilbm";
-            break;
-        case 5:
-            v5 = "pointers/disk.ilbm";
-            break;
-        case 6:
-            v5 = "pointers/new.ilbm";
-            break;
-        case 7:
-            v5 = "pointers/add.ilbm";
-            break;
-        case 8:
-            v5 = "pointers/control.ilbm";
-            break;
-        case 9:
-            v5 = "pointers/beam.ilbm";
-            break;
-        case 10:
-            v5 = "pointers/build.ilbm";
-            break;
-        default:
-            v5 = "pointers/pointer.ilbm";
-            break;
-        }
-
-        IDVList init_vals;
-        init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, v5);
-        init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
-        yw->pointers[i] = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+        yw->pointers[i] = Nucleus::CInit<NC_STACK_ilbm>({
+            {NC_STACK_rsrc::RSRC_ATT_NAME, pointerFiles.at(i)},
+            {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}});
         if ( !yw->pointers[i] )
         {
             ypa_log_out("yw_select.c/yw_InitMouseStuff()\n");
-            set_prefix_replacement("rsrc", rsr);
+            set_prefix_replacement("rsrc", oldRsrc);
             return 0;
         }
 
@@ -1301,30 +1240,24 @@ int yw_InitMouseStuff(NC_STACK_ypaworld *yw)
     arg_263.pointer_id = 1;
     yw->_win3d->display_func263(&arg_263);
 
-    set_prefix_replacement("rsrc", rsr);
+    set_prefix_replacement("rsrc", oldRsrc);
     return 1;
 }
 
 int NC_STACK_ypaworld::yw_LoadSet(int setID)
 {
     _win3d = GFXEngine::GFXe.getC3D();
-    field_17c0 = 0;
+    _mouseGrabbed = 0;
 
-    char buf[1024];
-    sprintf(buf, "data:set%d", setID);
-
-    char rsr[256];
-    strcpy(rsr,  get_prefix_replacement("rsrc"));
+    std::string oldRsrc = get_prefix_replacement("rsrc");
+    std::string newRsrc = fmt::sprintf("data:set%d", setID);
 
     _win3d->display_func271(NULL);
 
 
     set_prefix_replacement("rsrc", "data:mc2res");
 
-    IDVList init_vals;
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, "skeleton/colsub.sklt");
-
-    colsub_sklt = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+    colsub_sklt = Nucleus::CInit<NC_STACK_sklt>({{NC_STACK_rsrc::RSRC_ATT_NAME, std::string("skeleton/colsub.sklt")}});
     if ( !colsub_sklt )
     {
         ypa_log_out("Couldn't load <skeleton/colsub.sklt>, set %d.\n", setID);
@@ -1332,11 +1265,7 @@ int NC_STACK_ypaworld::yw_LoadSet(int setID)
     }
     colsub_sklt_intrn = colsub_sklt->GetSkelet();
 
-
-    init_vals.clear();
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, "skeleton/colcomp.sklt");
-
-    colcomp_sklt = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+    colcomp_sklt = Nucleus::CInit<NC_STACK_sklt>({{NC_STACK_rsrc::RSRC_ATT_NAME, std::string("skeleton/colcomp.sklt")}});
     if ( !colcomp_sklt )
     {
         ypa_log_out("Couldn't load <skeleton/colcomp.sklt>, set %d.\n", setID);
@@ -1345,7 +1274,7 @@ int NC_STACK_ypaworld::yw_LoadSet(int setID)
     colcomp_sklt_intrn = colcomp_sklt->GetSkelet();
 
 
-    set_prefix_replacement("rsrc", buf);
+    set_prefix_replacement("rsrc", newRsrc);
 
     if ( !GFXEngine::GFXe.loadPal("palette/standard.pal") )
         ypa_log_out("WARNING: Could not load set default palette!\n");
@@ -1365,7 +1294,7 @@ int NC_STACK_ypaworld::yw_LoadSet(int setID)
         {
             set_number = 0;
             ypa_log_out("yw_LoadSet(): loading set object %d failed\n", setID);
-            set_prefix_replacement("rsrc", rsr);
+            set_prefix_replacement("rsrc", oldRsrc);
             return 0;
         }
         set_number = setID;
@@ -1431,20 +1360,14 @@ int NC_STACK_ypaworld::yw_LoadSet(int setID)
         delete fil;
     }
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, "remap/tracyrmp.ilbm");
-
-    tracyrmp_ilbm = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+    tracyrmp_ilbm = Nucleus::CInit<NC_STACK_ilbm>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string("remap/tracyrmp.ilbm")}} );
     if ( !tracyrmp_ilbm )
     {
         ypa_log_out("Couldn't load tracy remap table, set %d.\n", setID);
         return 0;
     }
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, "remap/shadermp.ilbm");
-
-    shadermp_ilbm = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+    shadermp_ilbm = Nucleus::CInit<NC_STACK_ilbm>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string("remap/shadermp.ilbm")}} );
     if ( !shadermp_ilbm )
     {
         ypa_log_out("Couldn't load shade remap table, set %d.\n", setID);
@@ -1479,20 +1402,18 @@ int loadTOD(NC_STACK_ypaworld *yw, const char *fname)
     int tod = 0;
     if ( yw->GameShell )
     {
-        char buf[256];
-        sprintf(buf, "save:%s/%s", yw->GameShell->user_name.c_str(), fname);
-        FSMgr::FileHandle *fil = uaOpenFile(buf, "r");
+        FSMgr::FileHandle *fil = uaOpenFile( fmt::sprintf("save:%s/%s", yw->GameShell->user_name, fname), "r");
 
         if ( fil )
         {
-            char lnbuf[128];
-            if ( fil->gets(lnbuf, 128) )
+            std::string lnbuf;
+            if ( fil->ReadLine(&lnbuf) )
             {
-                char *lnbrk = strpbrk(lnbuf, "\n\r;");
-                if ( lnbrk )
-                    *lnbrk = 0;
+                size_t pos = lnbuf.find_first_of("\n\r;");
+                if (pos != std::string::npos)
+                    lnbuf.erase(pos);
 
-                tod = strtol(lnbuf, NULL, 0);
+                tod = std::stol(lnbuf, 0, 0);
             }
             delete fil;
         }
@@ -1505,9 +1426,7 @@ int writeTOD(NC_STACK_ypaworld *yw, const char *fname, int tod)
     int v6 = 0;
     if ( yw->GameShell )
     {
-        char buf[256];
-        sprintf(buf, "save:%s/%s", yw->GameShell->user_name.c_str(), fname);
-        FSMgr::FileHandle *fil = uaOpenFile(buf, "w");
+        FSMgr::FileHandle *fil = uaOpenFile( fmt::sprintf("save:%s/%s", yw->GameShell->user_name, fname), "w");
 
         if ( fil )
         {
@@ -1547,11 +1466,11 @@ void NC_STACK_ypaworld::sub_4491A0(const std::string &movie_fname)
 
     _win3d->windd_func323(&v6);
 
-    INPe.sub_412D28(&input_states);
+    INPe.QueryInput(&input_states);
 
-    input_states.downed_key = 0;
-    input_states.downed_key_2 = 0;
-    input_states.dword8 = 0;
+    input_states.KbdLastHit = Input::KC_NONE;
+    input_states.KbdLastDown = Input::KC_NONE;
+    input_states.HotKeyID = -1;
 }
 
 void sub_44A908(NC_STACK_ypaworld *yw)
@@ -1666,10 +1585,10 @@ void yw_freeDebrief(NC_STACK_ypaworld *yw)
 }
 
 // Select map
-void ypaworld_func158__sub4__sub1__sub0(NC_STACK_ypaworld *yw, struC5 *inpt)
+void ypaworld_func158__sub4__sub1__sub0(NC_STACK_ypaworld *yw, InputState *inpt)
 {
-    float v3 = (float)inpt->ClickInf.move.screenPos.x / (float)yw->screen_width;
-    float v4 = (float)inpt->ClickInf.move.screenPos.y / (float)yw->screen_height;
+    float v3 = (float)inpt->ClickInf.move.ScreenPos.x / (float)yw->screen_width;
+    float v4 = (float)inpt->ClickInf.move.ScreenPos.y / (float)yw->screen_height;
 
     if (v3 < 0.0)
         v3 = 0.0;
@@ -1722,14 +1641,13 @@ void ypaworld_func158__sub4__sub1__sub0(NC_STACK_ypaworld *yw, struC5 *inpt)
 }
 
 
-void splashScreen_OutText(NC_STACK_ypaworld *yw, NC_STACK_display *w3d, const char *txt, int x, int y)
+void splashScreen_OutText(NC_STACK_ypaworld *yw, NC_STACK_display *w3d, const std::string &txt, int x, int y)
 {
     char cmdbuf[2048];
-    char txtbuf[256];
 
     char *cur = cmdbuf;
 
-    if ( txt )
+    if ( !txt.empty() )
     {
         FontUA::select_tileset(&cur, 15);
         FontUA::set_xpos(&cur, x);
@@ -1737,32 +1655,13 @@ void splashScreen_OutText(NC_STACK_ypaworld *yw, NC_STACK_display *w3d, const ch
 
         FontUA::set_txtColor(&cur, yw->iniColors[13].r, yw->iniColors[13].g, yw->iniColors[13].b);
 
-        const char *txtpos = txt;
-
-        int lastline = 0;
-        while ( !lastline )
+        Stok parse(txt, "\n\r");
+        std::string line;
+        while( parse.GetNext( &line ) )
         {
-            const char *en = strpbrk(txtpos, "\n\r");
-
-            if (en)
-            {
-                int num = en - txtpos;
-
-                memcpy(txtbuf, txtpos, num);
-                txtbuf[num] = 0;
-
-                txtpos = en + 1;
-            }
-            else
-            {
-                strcpy(txtbuf, txtpos);
-                lastline = 1;
-            }
-
-            cur = FontUA::FormateClippedText(yw->tiles[15], cur, txtbuf, yw->screen_width - x, ' ');
+            cur = FontUA::FormateClippedText(yw->tiles[15], cur, line, yw->screen_width - x, ' ');
 
             FontUA::next_line(&cur);
-
         }
 
         FontUA::set_end(&cur);
@@ -2089,20 +1988,16 @@ int NC_STACK_ypaworld::ypaworld_func158__sub4__sub1__sub3(int lvlid)
 
                 set_prefix_replacement("rsrc", "levels:");
 
-                IDVList init_vals;
-                init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, LevelNet->brief_map[0].map_name.c_str());
-                init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
                 if ( LevelNet->brief_map[0].map_name[0] )
-                    brief.BriefingMapImg = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+                    brief.BriefingMapImg = Nucleus::CInit<NC_STACK_ilbm>( {
+                        {NC_STACK_rsrc::RSRC_ATT_NAME, LevelNet->brief_map[0].map_name},
+                        {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}} );
 
                 set_prefix_replacement("rsrc", "mbpix:");
 
-                init_vals.clear();
-                init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, mproto->Mbmaps[0].Name.c_str());
-                init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
-                brief.MbmapImg = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+                brief.MbmapImg = Nucleus::CInit<NC_STACK_ilbm>( {
+                    {NC_STACK_rsrc::RSRC_ATT_NAME, mproto->Mbmaps[0].Name},
+                    {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}} );
 
                 if ( brief.MbmapImg )
                 {
@@ -2111,11 +2006,11 @@ int NC_STACK_ypaworld::ypaworld_func158__sub4__sub1__sub3(int lvlid)
 
                     if ( typ_map )
                     {
-                        sectors_maxX2 = typ_map->Width();
-                        sectors_maxY2 = typ_map->Height();
+                        _mapWidth = typ_map->Width();
+                        _mapHeight = typ_map->Height();
 
-                        map_Width_meters = sectors_maxX2 * 1200.0;
-                        map_Height_meters = sectors_maxY2 * 1200.0;
+                        map_Width_meters = _mapWidth * 1200.0;
+                        map_Height_meters = _mapHeight * 1200.0;
 
                         //Set transitions
                         brief.ViewingObjectRect = ua_fRect(-0.98750001, 0.34999999, -0.003125, 0.85416669);
@@ -2189,7 +2084,7 @@ bool NC_STACK_ypaworld::InitDebrief()
 
     set_prefix_replacement("rsrc", "data:");
 
-    const std::string vGfxName[4] =
+    const std::array<std::string, 4> vGfxName
     {
         "wireless/db_genes.sklt",
         "wireless/db_death.sklt",
@@ -2197,13 +2092,8 @@ bool NC_STACK_ypaworld::InitDebrief()
         "wireless/db_sec.sklt"
     };
 
-    for (int i = 0; i < 4; i++)
-    {
-        IDVList init_vals;
-        init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, vGfxName[i].c_str());
-
-        brief.VectorGfx[i] = Nucleus::CInit<NC_STACK_sklt>(init_vals);
-    }
+    for (size_t i = 0; i < vGfxName.size(); i++)
+        brief.VectorGfx[i] = Nucleus::CInit<NC_STACK_sklt>({{NC_STACK_rsrc::RSRC_ATT_NAME, vGfxName[i]}});
 
     if ( copyof_ownermap )
         brief.OwnMap = *copyof_ownermap;
@@ -2227,31 +2117,26 @@ bool NC_STACK_ypaworld::InitDebrief()
 
     set_prefix_replacement("rsrc", "levels:");
 
-
-    IDVList init_vals;
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, LevelNet->debrief_map[0].map_name.c_str());
-    init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
     if ( LevelNet->debrief_map[0].map_name[0] )
-        brief.BriefingMapImg = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+        brief.BriefingMapImg = Nucleus::CInit<NC_STACK_ilbm>( {
+            {NC_STACK_rsrc::RSRC_ATT_NAME, LevelNet->debrief_map[0].map_name},
+            {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}});
 
     set_prefix_replacement("rsrc", "mbpix:");
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, v8.Name.c_str());
-    init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
-    brief.MbmapImg = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+    brief.MbmapImg = Nucleus::CInit<NC_STACK_ilbm>( {
+        {NC_STACK_rsrc::RSRC_ATT_NAME, v8.Name},
+        {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}});
     if ( !brief.MbmapImg )
     {
         yw_freeDebrief(this);
         return false;
     }
 
-    sectors_maxX2 = typ_map->Width();
-    sectors_maxY2 = typ_map->Height();
-    map_Width_meters = sectors_maxX2 * 1200.0;
-    map_Height_meters = sectors_maxY2 * 1200.0;
+    _mapWidth = typ_map->Width();
+    _mapHeight = typ_map->Height();
+    map_Width_meters = _mapWidth * 1200.0;
+    map_Height_meters = _mapHeight * 1200.0;
 
     brief.Stage = 4;
 
@@ -2323,7 +2208,7 @@ void NC_STACK_ypaworld::ypaworld_func158__sub4__sub1()
         {
             if ( _levelInfo->State == 5 )
             {
-                if ( GameShell->_input->downed_key == UAVK_RETURN )
+                if ( GameShell->_input->KbdLastHit == Input::KC_RETURN )
                     brief.Stage = 1;
 
                 if ( brief.Stage == 1 )
@@ -2604,6 +2489,10 @@ char * sub_4DDF78(NC_STACK_ypaworld *yw, GuiList *lstvw, char *pos, int a3)
 
 void ypaworld_func158__network_list_draw(NC_STACK_ypaworld *yw, UserData *usr)
 {
+    const std::array<std::string, 2> connNames
+    { "Host the game"
+    , "Connect to game"};
+    
     bool slct = false;
 
     char *cmd = usr->network_listvw.itemBlock;
@@ -2634,21 +2523,17 @@ void ypaworld_func158__network_list_draw(NC_STACK_ypaworld *yw, UserData *usr)
         {
         case 0: //provider
         {
-            windp_getNameMsg msg;
-            msg.id = i;
-            if ( yw->windp->GetProviderName(&msg) )
+            if (i < 2)
             {
-                str1 = msg.name;
+                str1 = connNames[i];
                 brk = false;
-
+                
                 if (usr->netSel == -1 && i == 0)
                 {
-                    strcpy(usr->netName, msg.name);
-
+                    usr->netName = str1;
                     usr->network_button->button_func71(1200, usr->netName);
                     usr->netSel = 0;
                 }
-
             }
             else
                 str1 = "----";
@@ -2665,7 +2550,7 @@ void ypaworld_func158__network_list_draw(NC_STACK_ypaworld *yw, UserData *usr)
                 for (j = 0; (uint8_t)msg.name[j] >= ' ' && msg.name[j] != '|'; j++ )
                     str1 += msg.name[j];
 
-                int lvlid = atoi(str1.c_str());
+                int lvlid = std::stoi(str1);
 
                 str1 = get_lang_string( yw->string_pointers_p2, lvlid + 1800, yw->LevelNet->mapInfos[ lvlid ].map_name.c_str() );
 
@@ -2692,9 +2577,9 @@ void ypaworld_func158__network_list_draw(NC_STACK_ypaworld *yw, UserData *usr)
                         }
                     }
 
-                    lvlid = atoi(str1.c_str());
+                    lvlid = std::stoi(str1);
 
-                    strcpy(usr->netName, yw->LevelNet->mapInfos[ lvlid ].map_name.c_str());
+                    usr->netName = yw->LevelNet->mapInfos[ lvlid ].map_name;
 
                     usr->network_button->button_func71(1200, usr->netName);
 
@@ -2718,9 +2603,7 @@ void ypaworld_func158__network_list_draw(NC_STACK_ypaworld *yw, UserData *usr)
 
                 brk = false;
 
-                char buf[64];
-                sprintf(buf, "%d X %d", lvl->secXsize, lvl->secYsize);
-                str2 = buf;
+                str2 = fmt::sprintf("%d X %d", lvl->secXsize, lvl->secYsize);
 
                 cnt++;
 
@@ -2769,7 +2652,7 @@ void ypaworld_func158__network_list_draw(NC_STACK_ypaworld *yw, UserData *usr)
 
                 if ( usr->netSel == -1 && cnt == 0)
                 {
-                    strcpy(usr->netName, usr->map_descriptions[ i ].pstring);
+                    usr->netName = usr->map_descriptions[ i ].pstring;
 
                     usr->network_button->button_func71(1200, usr->netName);
 
@@ -3469,7 +3352,7 @@ void UserData::clear()
     netSelMode = 0;
     netSel = 0;
     nInputMode = 0;
-    memset(netName, 0, sizeof(netName));
+    netName.clear();
 
     netNameCurPos = 0;
     netLevelID = 0;
@@ -3517,7 +3400,11 @@ void UserData::clear()
     confirm_button = NULL;
     field_0x2fb4 = 0;
 
-    memset(keyConfig, 0, sizeof(keyConfig));
+    for(std::string &str : InputConfigTitle)
+        str.clear();
+    
+    for(TInputConf &cfg : InputConfig)
+        cfg = TInputConf();
 
     field_3426 = 0;
     shelltrack = 0;

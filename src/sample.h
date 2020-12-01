@@ -21,19 +21,17 @@ class NC_STACK_sample: public NC_STACK_rsrc
 {
 public:
     virtual size_t func0(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual rsrc * rsrc_func64(IDVList &stak);
     virtual size_t rsrc_func65(rsrc *pres);
     virtual void * sample_func128(void **arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_sample() {
         memset(&stack__sample, 0, sizeof(stack__sample));
     };
     virtual ~NC_STACK_sample() {};
-
-    virtual const char * getClassName() {
-        return "sample.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

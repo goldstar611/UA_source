@@ -74,8 +74,8 @@
 #define MMAX(a, b) ((a) > (b) ? (a) : (b))
 #define MMIN(a, b) ((a) < (b) ? (a) : (b))
 
-#define NANCARRY_LOG
-#define NDIV_CARRY_LOG
+//#define NANCARRY_LOG
+//#define NDIV_CARRY_LOG
 
 #ifndef NANCARRY_LOG
 
@@ -106,27 +106,13 @@ int read_yes_no_status(const char *file, int result);
 
 float SWAP32F(float f);
 
-struct __attribute__((packed)) shortPoint
-{
-    short x;
-    short y;
-
-    shortPoint(int32_t a)
-    {
-        x = a & 0xFFFF;
-        y = a >> 16;
-    }
-
-    shortPoint(): x(0), y(0) {}
-};
-
 const char *get_lang_string(char **array, int id, const char *def);
 
 #ifndef strnicmp
 int strnicmp (const char *s1, const char *s2, size_t n);
 #endif
 
-uint32_t fileCrc32(const char *filename, uint32_t _crc = 0);
+uint32_t fileCrc32(const std::string &filename, uint32_t _crc = 0);
 
 void dprintf(const char *fmt, ...);
 
@@ -211,7 +197,7 @@ public:
         else
             *word = _buf.substr(_pos);
 
-        _pos = next;
+        _pos = _buf.find_first_not_of(_chars, next);
         return true;
     }
 
@@ -288,12 +274,21 @@ inline void ByteUL16(void *dat, uint16_t v)
     ((uint8_t *)dat)[1] = (v >> 8) & 0xFF;
 }
 
-inline void ByteUL32(void *dat, uint16_t v)
+inline void ByteUL32(void *dat, uint32_t v)
 {
     ((uint8_t *)dat)[0] = v & 0xFF;
     ((uint8_t *)dat)[1] = (v >> 8) & 0xFF;
     ((uint8_t *)dat)[2] = (v >> 16) & 0xFF;
     ((uint8_t *)dat)[3] = (v >> 24) & 0xFF;
+}
+
+template <typename T>
+const std::vector<T> IterateListCopy(std::list<T> &lst)
+{
+    std::vector<T> tmp;
+    tmp.reserve(lst.size());
+    tmp.assign(lst.begin(), lst.end());
+    return tmp;
 }
 
 }

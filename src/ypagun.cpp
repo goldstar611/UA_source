@@ -20,40 +20,40 @@ size_t NC_STACK_ypagun::func0(IDVList &stak)
     _gunType = GUN_TYPE_REAL;
     _gunFireTime = 100;
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case GUN_ATT_SIDEANGLE:
-                setGUN_sideAngle(val.value.i_data);
+                setGUN_sideAngle(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_UPANGLE:
-                setGUN_upAngle(val.value.i_data);
+                setGUN_upAngle(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_DOWNANGLE:
-                setGUN_downAngle(val.value.i_data);
+                setGUN_downAngle(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_FIRETYPE:
-                setGUN_fireType(val.value.i_data);
+                setGUN_fireType(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_FIRETIME:
-                setGUN_fireTime(val.value.i_data);
+                setGUN_fireTime(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_SETGROUND:
-                setGUN_setGround ( val.value.i_data );
+                setGUN_setGround ( val.Get<int32_t>() );
                 break;
 
             case GUN_ATT_ROBOGUN:
-                setGUN_roboGun ( val.value.i_data );
+                setGUN_roboGun ( val.Get<int32_t>() );
                 break;
 
             default:
@@ -74,40 +74,40 @@ size_t NC_STACK_ypagun::func2(IDVList &stak)
 {
     NC_STACK_ypabact::func2(stak);
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case GUN_ATT_SIDEANGLE:
-                setGUN_sideAngle(val.value.i_data);
+                setGUN_sideAngle(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_UPANGLE:
-                setGUN_upAngle(val.value.i_data);
+                setGUN_upAngle(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_DOWNANGLE:
-                setGUN_downAngle(val.value.i_data);
+                setGUN_downAngle(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_FIRETYPE:
-                setGUN_fireType(val.value.i_data);
+                setGUN_fireType(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_FIRETIME:
-                setGUN_fireTime(val.value.i_data);
+                setGUN_fireTime(val.Get<int32_t>());
                 break;
 
             case GUN_ATT_SETGROUND:
-                setGUN_setGround ( val.value.i_data );
+                setGUN_setGround ( val.Get<int32_t>() );
                 break;
 
             case GUN_ATT_ROBOGUN:
-                setGUN_roboGun ( val.value.i_data );
+                setGUN_roboGun ( val.Get<int32_t>() );
                 break;
 
             default:
@@ -118,56 +118,6 @@ size_t NC_STACK_ypagun::func2(IDVList &stak)
 
     return 1;
 }
-
-size_t NC_STACK_ypagun::func3(IDVList &stak)
-{
-    NC_STACK_ypabact::func3(stak);
-
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case GUN_ATT_SIDEANGLE:
-                *(int *)val.value.p_data = getGUN_sideAngle();
-                break;
-
-            case GUN_ATT_UPANGLE:
-                *(int *)val.value.p_data = getGUN_upAngle();
-                break;
-
-            case GUN_ATT_DOWNANGLE:
-                *(int *)val.value.p_data = getGUN_downAngle();
-                break;
-
-            case GUN_ATT_FIRETYPE:
-                *(int *)val.value.p_data = getGUN_fireType();
-                break;
-
-            case GUN_ATT_FIRETIME:
-                *(int *)val.value.p_data = getGUN_fireTime();
-                break;
-
-            case GUN_ATT_SETGROUND:
-                *(int *)val.value.p_data = getGUN_setGround();
-                break;
-
-            case GUN_ATT_ROBOGUN:
-                *(int *)val.value.p_data = IsRoboGun();
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return 1;
-}
-
 
 bool NC_STACK_ypagun::CheckPedestal()
 {
@@ -413,7 +363,7 @@ void NC_STACK_ypagun::User_layer(update_msg *arg)
 
             if ( _status_flg & BACT_STFLAG_FIRE )
             {
-                if ( !(arg->inpt->but_flags & 1) && !(arg->inpt->but_flags & 2) )
+                if ( !arg->inpt->Buttons.IsAny({0, 1}) )
                 {
                     setState_msg arg78;
                     arg78.setFlags = 0;
@@ -438,7 +388,7 @@ void NC_STACK_ypagun::User_layer(update_msg *arg)
                 arg79.tgType = BACT_TGT_TYPE_UNIT;
             }
 
-            if ( arg->inpt->but_flags & 1 || arg->inpt->but_flags & 2 )
+            if ( arg->inpt->Buttons.IsAny({0, 1}) )
             {
                 if ( _gunType == GUN_TYPE_REAL )
                 {
@@ -446,7 +396,7 @@ void NC_STACK_ypagun::User_layer(update_msg *arg)
                     arg79.direction = _rotation.AxisZ();
                     arg79.g_time = _clock;
                     arg79.start_point = _fire_pos;
-                    arg79.flags = ((arg->inpt->but_flags & 2) != 0) | 2;
+                    arg79.flags = (arg->inpt->Buttons.Is(1) ? 1 : 0) | 2;
 
                     if ( LaunchMissile(&arg79) )
                     {
@@ -486,7 +436,7 @@ void NC_STACK_ypagun::User_layer(update_msg *arg)
                 }
             }
 
-            float yRot = arg->inpt->sliders_vars[0] * _maxrot * fTime;
+            float yRot = arg->inpt->Sliders[0] * _maxrot * fTime;
 
             if ( fabs( yRot ) > 0.001 )
             {
@@ -506,7 +456,7 @@ void NC_STACK_ypagun::User_layer(update_msg *arg)
                 _rotation *= mat3x3(_gunRott, yRot, MAT_FLAG_INV_SIN);
             }
 
-            float xRot = arg->inpt->sliders_vars[1] * _maxrot * fTime;
+            float xRot = arg->inpt->Sliders[1] * _maxrot * fTime;
 
             if ( fabs(xRot) > 0.001 )
             {
@@ -555,18 +505,10 @@ void NC_STACK_ypagun::FightWithBact(bact_arg75 *arg)
             arg79.target.pbact = arg->target.pbact;
             arg79.weapon = _weapon;
             arg79.g_time = arg->g_time;
-            arg79.flags = 0;
+            arg79.flags = (!getBACT_inputting() ? 4 : 0);
 
             if ( LaunchMissile(&arg79) )
             {
-                int a5 = getBACT_inputting();
-
-                if ( !a5 )
-                {
-                    YpamissileList::reverse_iterator it = _missiles_list.rbegin();
-                    if ( it != _missiles_list.rend() )
-                        (*it)->setMISS_ignoreBuilds(1);
-                }
                 _gunFireCount = _gunFireTime;
 
                 setState_msg arg78;
@@ -617,7 +559,7 @@ void NC_STACK_ypagun::Die()
         int v6 = 1;
         HandleVisChildrens(&v6);
 
-        if ( _gunFlags & GUN_FLAGS_ROBO )
+        if ( (_gunFlags & GUN_FLAGS_ROBO) && _host_station )
         {
             roboGun *hostGun = _host_station->getROBO_guns();
 
@@ -879,49 +821,3 @@ bool NC_STACK_ypagun::IsRoboGun()
     return (_gunFlags & GUN_FLAGS_ROBO) != 0;
 }
 
-
-size_t NC_STACK_ypagun::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return func2( *(IDVList *)data );
-    case 3:
-        return func3( *(IDVList *)data );
-    case 70:
-        AI_layer3( (update_msg *)data );
-        return 1;
-    case 71:
-        User_layer( (update_msg *)data );
-        return 1;
-    case 75:
-        FightWithBact( (bact_arg75 *)data );
-        return 1;
-    case 77:
-        Die();
-        return 1;
-    case 80:
-        return (size_t)SetPosition( (bact_arg80 *)data );
-    case 82:
-        EnergyInteract( (update_msg *)data );
-        return 1;
-    case 96:
-        Renew();
-        return 1;
-    case 111:
-        return (size_t)TestTargetSector( (NC_STACK_ypabact *)data );
-    case 128:
-        //ypagun_func128( (gun_arg128 *)data );
-        return 1;
-    case 129:
-        //ypagun_func129( (gun_arg129 *)data );
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_ypabact::compatcall(method_id, data);
-}

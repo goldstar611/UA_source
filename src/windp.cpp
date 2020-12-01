@@ -13,11 +13,11 @@ const Nucleus::ClassDescr NC_STACK_windp::description("windp.class", &newinstanc
 
 const char *SERV_STR = "UA:SOURCE TEST NETWORK";
 
-key_value_stru windp_keys[3] =
+Common::Ini::KeyList windp_keys
 {
-    {"net.gmode", KEY_TYPE_DIGIT, 0},               //0
-    {"net.versioncheck", KEY_TYPE_BOOL, 1},
-    {"game.debug", KEY_TYPE_BOOL, 0}
+    Common::Ini::Key("net.gmode",  Common::Ini::KT_DIGIT),               //0
+    Common::Ini::Key("net.versioncheck", Common::Ini::KT_BOOL, true),
+    Common::Ini::Key("game.debug", Common::Ini::KT_BOOL)
 };
 
 size_t NC_STACK_windp::func0(IDVList &stak)
@@ -31,21 +31,18 @@ size_t NC_STACK_windp::func0(IDVList &stak)
         return 0;
     }
 
-    EnumProviders();
-    get_keyvalue_from_ini(NULL, windp_keys, 3);
-    guaranteed_md = windp_keys[0].value.val;
-    version_check = windp_keys[1].value.val;
-    debug = windp_keys[2].value.val;
+    Common::Ini::ParseIniFile(DefaultIniFile, &windp_keys);
+    guaranteed_md = windp_keys[0].Get<int>();
+    version_check = windp_keys[1].Get<bool>();
+    debug = windp_keys[2].Get<bool>();
     return 1;
 }
 
 void NC_STACK_windp::_clear()
 {
-    numProviders = 0;
     for(int i = 0; i < MAX_PROVIDERS; i++)
         providers[i].clear();
 
-    providerID = 0;
     connType = 0;
 
     version_ident = "";
@@ -103,69 +100,24 @@ size_t NC_STACK_windp::func1()
     return NC_STACK_nucleus::func1();
 }
 
-size_t NC_STACK_windp::func3(IDVList &stak)
-{
-    return NC_STACK_nucleus::func3(stak);
-}
 
-size_t NC_STACK_windp::EnumProviders()
+size_t NC_STACK_windp::SetMode(bool hosting)
 {
-    numProviders = 2;
-    providers[0].name = "Host the game";
-    providers[0].type = 1;
-    providers[1].name = "Connect to game";
-    providers[1].type = 2;
-
+    if (hosting)
+    {
+        connType = 1;
+        zhost = new ZNDNet::ZNDSingle(SERV_STR);
+        zcon = zhost;
+    }
+    else
+    {
+        connType = 2;
+        zcli = new ZNDNet::ZNDClient(SERV_STR);
+        zcon = zcli;
+    }
     return 1;
 }
 
-size_t NC_STACK_windp::GetProviderName(windp_getNameMsg *arg)
-{
-    if (arg->id < numProviders)
-    {
-        arg->name = providers[ arg->id ].name.c_str();
-        return 1;
-    }
-
-    return 0;
-}
-
-size_t NC_STACK_windp::SelectProvider(const char *provName)
-{
-    for(int i = 0; i < numProviders; i++)
-    {
-        if (strcasecmp(provName, providers[ i ].name.c_str()) == 0)
-        {
-            providerID = i;
-
-            if (providers[ i ].type == 2) //client
-            {
-                connType = 4;
-                zcli = new ZNDNet::ZNDClient(SERV_STR);
-                zcon = zcli;
-            }
-            else
-            {
-                connType = 1;
-                zhost = new ZNDNet::ZNDSingle(SERV_STR);
-                zcon = zhost;
-            }
-            return 1;
-        }
-    }
-    return 0;
-}
-
-size_t NC_STACK_windp::GetProviderData(ProviderStruct **pconn)
-{
-    if (providerID < numProviders)
-    {
-        *pconn = &providers[ providerID ];
-        return true;
-    }
-
-    return 0;
-}
 
 size_t NC_STACK_windp::EnumSessions(IDVPair *stak)
 {
@@ -346,13 +298,13 @@ size_t NC_STACK_windp::GetLocalName(IDVPair *stak)
     return 0;
 }
 
-void NC_STACK_windp::SetVersion(const char *ver)
+void NC_STACK_windp::SetVersion(const std::string &ver)
 {
     //set session ident
     version_ident = ver;
 }
 
-size_t NC_STACK_windp::GetProvType(IDVPair *stak)
+size_t NC_STACK_windp::GetProvType()
 {
     // get provider type
     printf("%s\n", __PRETTY_FUNCTION__);
@@ -371,80 +323,6 @@ int NC_STACK_windp::getNumPlayers()
     return 0;
 }
 
-
-size_t NC_STACK_windp::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 3:
-        func3( *(IDVList *)data );
-        return 1;
-    case 64:
-        return (size_t)EnumProviders();
-    case 65:
-        return (size_t)GetProviderName( (windp_getNameMsg *)data );
-    case 66:
-        return (size_t)SelectProvider( (const char *)data );
-    case 67:
-        return (size_t)GetProviderData( (ProviderStruct **)data );
-    case 68:
-        return (size_t)EnumSessions( (IDVPair *)data );
-    case 69:
-        return (size_t)GetSessionName( (windp_getNameMsg *)data );
-    case 70:
-        return (size_t)JoinSession( (const char *)data );
-    case 71:
-        return (size_t)CreateSession( (windp_openSessionMsg *)data );
-    case 72:
-        return (size_t)GetSessionData( (IDVPair *)data );
-    case 73:
-        return (size_t)CloseSession( (IDVPair *)data );
-    case 74:
-        return (size_t)GetSessionStatus();
-    case 75:
-        return (size_t)SetSessionName( (const char *)data );
-    case 76:
-        return (size_t)CreatePlayer( (windp_createPlayerMsg *)data );
-    case 77:
-        return (size_t)DeletePlayer( (const char *)data );
-    case 78:
-        return (size_t)EnumPlayers( (IDVPair *)data );
-    case 79:
-        return (size_t)GetPlayerData( (windp_arg79 *)data );
-    case 80:
-        return (size_t)SendMessage( (IDVPair *)data );
-    case 81:
-        return (size_t)RecvMessage( (windp_recvMsg *)data );
-    case 82:
-        return 0; //(size_t)SendMessage( (windp_arg82 &)*data );
-    case 83:
-        return (size_t)GetCaps( (IDVPair *)data );
-    case 84:
-        return (size_t)LockSession( (int *)data );
-    case 85:
-        return (size_t)Reset( (IDVPair *)data );
-    case 86:
-        return (size_t)CountPlayers( (IDVPair *)data );
-    case 87:
-        return (size_t)GetRemoteStart( (windp_arg87 *)data );
-    case 88:
-        return (size_t)GetLocalName( (IDVPair *)data );
-    case 89:
-        SetVersion( (const char *)data );
-        return 0;
-    case 90:
-        return (size_t)GetProvType( (IDVPair *)data );
-    case 91:
-        return (size_t)GetStats( (int *)data );
-    default:
-        break;
-    }
-    return NC_STACK_network::compatcall(method_id, data);
-}
 
 
 
@@ -517,7 +395,7 @@ void UserData::sub_46B328()
         int numpl = p_ypaworld->windp->CountPlayers(NULL);
 
         netSelMode = 4;
-        netName[0] = 0;
+        netName = "";
         netNameCurPos = 0;
         network_listvw.firstShownEntries = 0;
         network_listvw.selectedEntry = 0;
@@ -628,7 +506,7 @@ void UserData::sub_46B328()
         p_ypaworld->windp->FlushBuffer(flushmsg);
 
         char bff[300];
-        sprintf(bff, "%d%s%s%s%s", netLevelID, "|", callSIGN.c_str(), "|", p_ypaworld->buildDate);
+        sprintf(bff, "%d%s%s%s%s", netLevelID, "|", callSIGN.c_str(), "|", p_ypaworld->buildDate.c_str());
 
         p_ypaworld->windp->SetSessionName(bff);
     }
@@ -639,7 +517,7 @@ void UserData::sub_46B328()
         int numpl = p_ypaworld->windp->CountPlayers(NULL);
 
         netSelMode = 4;
-        netName[0] = 0;
+        netName = "";
         netNameCurPos = 0;
         network_listvw.firstShownEntries = 0;
         network_listvw.selectedEntry = 0;
@@ -749,9 +627,9 @@ void UserData::sub_46B328()
         if (isHost)
         {
             char bff[300];
-            sprintf(bff, "%d%s%s%s%s", netLevelID, "|", callSIGN.c_str(), "|", p_ypaworld->buildDate);
+            sprintf(bff, "%d%s%s%s%s", netLevelID, "|", callSIGN.c_str(), "|", p_ypaworld->buildDate.c_str());
 
-            if (p_ypaworld->windp->GetProvType(NULL) == 4) //MODEM!!!!
+            if (p_ypaworld->windp->GetProvType() == 4) //MODEM!!!!
                 p_ypaworld->_win3d->windd_func320(NULL);
 
             windp_openSessionMsg os;
@@ -760,7 +638,7 @@ void UserData::sub_46B328()
 
             size_t res = p_ypaworld->windp->CreateSession(&os);
 
-            if (p_ypaworld->windp->GetProvType(NULL) == 4) //MODEM!!!!
+            if (p_ypaworld->windp->GetProvType() == 4) //MODEM!!!!
                 p_ypaworld->_win3d->windd_func321(NULL);
 
             if ( !res )
@@ -776,7 +654,7 @@ void UserData::sub_46B328()
             p_ypaworld->isNetGame = 1;
             netSel = -1;
             netSelMode = 4;
-            netName[0] = 0;
+            netName = "";
             netNameCurPos = 0;
             network_listvw.firstShownEntries = 0;
             network_listvw.selectedEntry = 0;
@@ -800,14 +678,11 @@ void UserData::yw_NetOKProvider()
 {
     if (netSel >= 0)
     {
-        windp_getNameMsg prNameMsg;
-        prNameMsg.id = netSel;
-
-        if ( p_ypaworld->windp->GetProviderName(&prNameMsg) )
+        if ( netSel == 0 || netSel == 1 )
         {
             p_ypaworld->_win3d->windd_func320(NULL);
 
-            if ( p_ypaworld->windp->SelectProvider(prNameMsg.name) )
+            if ( p_ypaworld->windp->SetMode(netSel == 0) )
             {
                 netSelMode = 2;
                 netSel = -1;
@@ -816,47 +691,37 @@ void UserData::yw_NetOKProvider()
 
                 p_YW->GuiWinClose( &network_listvw );
 
-                strcpy(netName, callSIGN.c_str());
+                netName = callSIGN;
 
-                netNameCurPos = strlen(netName);
+                netNameCurPos = netName.size();
             }
 
             p_ypaworld->_win3d->windd_func321(NULL);
 
-            int type = p_ypaworld->windp->GetProvType(NULL);
-
-            if ( type != 4 && type != 3 )
-            {
-                update_time_norm = 200;
-                flush_time_norm = 200;
-            }
-            else
-            {
-                update_time_norm = 400;
-                flush_time_norm = 400;
-            }
+            update_time_norm = 200;
+            flush_time_norm = 200;
         }
     }
 }
 
 void UserData::yw_JoinNetGame()
 {
-    if ( p_ypaworld->windp->GetProvType(NULL) != 4 || modemAskSession )
+    if ( p_ypaworld->windp->GetProvType() != 4 || modemAskSession )
     {
         windp_getNameMsg gName;
         gName.id = netSel;
 
         if ( p_ypaworld->windp->GetSessionName(&gName) )
         {
-            if ( p_ypaworld->windp->GetProvType(NULL) == 4 )
+            if ( p_ypaworld->windp->GetProvType() == 4 )
                 p_ypaworld->_win3d->windd_func320(NULL);
 
             if ( p_ypaworld->windp->JoinSession(gName.name) )
             {
-                if ( p_ypaworld->windp->GetProvType(NULL) == 4 )
+                if ( p_ypaworld->windp->GetProvType() == 4 )
                     p_ypaworld->_win3d->windd_func321(NULL);
 
-                netName[0] = 0;
+                netName = "";
                 netNameCurPos = 0;
                 netLevelID = 0;
 
@@ -902,7 +767,7 @@ void UserData::yw_JoinNetGame()
                     p_ypaworld->isNetGame = 1;
                     netSel = -1;
                     netSelMode = 4;
-                    netName[0] = 0;
+                    netName = "";
                     netNameCurPos = 0;
                     network_listvw.firstShownEntries = 0;
                     network_listvw.selectedEntry = 0;
@@ -947,13 +812,13 @@ void UserData::yw_JoinNetGame()
             }
             else
             {
-                if ( p_ypaworld->windp->GetProvType(NULL) == 4 )
+                if ( p_ypaworld->windp->GetProvType() == 4 )
                     p_ypaworld->_win3d->windd_func320(NULL);
 
                 //sb_0x46bb54__sub0(p_ypaworld, get_lang_string(p_ypaworld->string_pointers_p2, 2400, "YPA ERROR MESSAGE"), get_lang_string(p_ypaworld->string_pointers_p2, 2401, "SESSION NOT LONGER AVAILABLE"));
                 printf("%s: %s\n", get_lang_string(p_ypaworld->string_pointers_p2, 2400, "YPA ERROR MESSAGE"), get_lang_string(p_ypaworld->string_pointers_p2, 2401, "SESSION NOT LONGER AVAILABLE"));
 
-                if ( p_ypaworld->windp->GetProvType(NULL) == 4 )
+                if ( p_ypaworld->windp->GetProvType() == 4 )
                 {
                     netSel = -1;
                     sub_46D698();
@@ -967,7 +832,7 @@ void UserData::yw_JoinNetGame()
     }
     else
     {
-        if ( p_ypaworld->windp->GetProvType(NULL) == 4 )
+        if ( p_ypaworld->windp->GetProvType() == 4 )
             p_ypaworld->_win3d->windd_func320(NULL);
 
         if ( p_ypaworld->windp->EnumSessions(NULL) )
@@ -975,7 +840,7 @@ void UserData::yw_JoinNetGame()
             modemAskSession = 1;
         }
 
-        if ( p_ypaworld->windp->GetProvType(NULL) == 4 )
+        if ( p_ypaworld->windp->GetProvType() == 4 )
             p_ypaworld->_win3d->windd_func321(NULL);
     }
 }
@@ -1112,11 +977,12 @@ void UserData::yw_NetPrintStartInfo()
     {
         log_netlog("-------------- Start YPA network session ------------------\n\n");
 
-        ProviderStruct *arg67 = NULL;
-        p_ypaworld->windp->GetProviderData(&arg67);
+        size_t pT = p_ypaworld->windp->GetProvType();
 
-        if ( arg67 )
-            log_netlog("Provider: %s\n", arg67->name);
+        if ( pT == 1 )
+            log_netlog("Provider: Hosting\n");
+        else if ( pT == 2 )
+            log_netlog("Provider: Connect\n");
         else
             log_netlog("!!! Unknown provider\n");
 
@@ -1269,7 +1135,7 @@ void sb_0x451034__sub6(NC_STACK_ypaworld *yw)
 }
 
 //netgui update
-void ypaworld_func64__sub7__sub5(NC_STACK_ypaworld *yw, struC5 *inpt)
+void ypaworld_func64__sub7__sub5(NC_STACK_ypaworld *yw, InputState *inpt)
 {
     dprintf("MAKE ME %s (multiplayer)\n", "ypaworld_func64__sub7__sub5");
 }

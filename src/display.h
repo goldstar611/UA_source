@@ -3,6 +3,7 @@
 
 #include "engine_gfx.h"
 #include "common.h"
+#include "base.h"
 
 struct ua_dRect
 {
@@ -152,8 +153,6 @@ class NC_STACK_display: public NC_STACK_nucleus
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t raster_func192(IDVPair *);
 //    virtual size_t raster_func193(bitmap_intern **out);
     virtual size_t raster_func198(w3d_func198arg *);
@@ -164,7 +163,7 @@ public:
     virtual size_t raster_func203(IDVPair *);
     virtual size_t raster_func204(rstr_arg204 *);
     virtual size_t raster_func205(IDVPair *);
-    virtual size_t raster_func206(polysDatSub *);
+    virtual size_t raster_func206(polysDat *);
     virtual void raster_func207(int id, TileMap *tiles);
     virtual TileMap *raster_func208(int id);
     virtual int raster_func208(TileMap *tiles);
@@ -196,17 +195,15 @@ public:
     virtual void display_func271(IDVPair *stak) {};
     virtual void display_func272(IDVPair *) {};
     virtual UA_PALETTE * display_func273(int paletteId);
-    virtual void display_func274(const char **);
+    virtual void SaveScreenshot(const std::string & screenName);
 
-
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_display() {
         memset(&stack__display, 0, sizeof(stack__display));
     };
     virtual ~NC_STACK_display() {};
-
-    virtual const char * getClassName() {
-        return "display.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -236,7 +233,8 @@ public:
         RFLAGS_ZEROTRACY = 0x10,
         RFLAGS_LUMTRACY = 0x20,
         RFLAGS_SKY = 0x40,
-        RFLAGS_FALLOFF = 0x80
+        RFLAGS_FALLOFF = 0x80,
+        RFLAGS_IGNORE_FALLOFF = 0x1000,
     };
 
     //Set
@@ -259,6 +257,8 @@ public:
     
     virtual void ConvAlphaPalette(UA_PALETTE *dst, const UA_PALETTE &src, bool transp) = 0;
     virtual SDL_PixelFormat *GetScreenFormat() = 0;
+    virtual SDL_Surface *CreateSurfaceScreenFormat(int width, int height) = 0;
+    virtual SDL_Surface *ConvertToScreenFormat(SDL_Surface *src) = 0;
 
     //Data
 public:

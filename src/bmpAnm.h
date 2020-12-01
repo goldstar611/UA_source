@@ -57,8 +57,6 @@ class NC_STACK_bmpanim: public NC_STACK_bitmap
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t func5(IFFile **file);
     virtual size_t func6(IFFile **file);
     virtual rsrc * rsrc_func64(IDVList &stak);
@@ -66,14 +64,13 @@ public:
     virtual size_t rsrc_func66(rsrc_func66_arg *sv);
     virtual void bitmap_func130(bitmap_arg130 *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_bmpanim() {
         memset(&stack__bmpanim, 0, sizeof(stack__bmpanim));
     };
     virtual ~NC_STACK_bmpanim() {};
-
-    virtual const char * getClassName() {
-        return "bmpanim.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

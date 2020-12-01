@@ -11,16 +11,15 @@ struct __NC_STACK_wintimer
 class NC_STACK_wintimer: public NC_STACK_itimer
 {
 public:
-    virtual int itimer_func64(void *);
+    virtual int itimer_func64();
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_wintimer() {
         memset(&stack__wintimer, 0, sizeof(stack__wintimer));
     };
     virtual ~NC_STACK_wintimer() {};
-
-    virtual const char * getClassName() {
-        return "wintimer.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

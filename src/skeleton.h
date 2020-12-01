@@ -92,7 +92,7 @@ struct Data
     };
 };
 
-};
+}
 
 struct __NC_STACK_skeleton
 {
@@ -136,7 +136,6 @@ class NC_STACK_skeleton: public NC_STACK_rsrc
 {
 public:
     virtual size_t func0(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual rsrc * rsrc_func64(IDVList &stak);
     virtual size_t rsrc_func65(rsrc *pres);
     virtual __NC_STACK_skeleton * skeleton_func128(IDVPair *);
@@ -146,14 +145,13 @@ public:
     virtual size_t skeleton_func132(skeleton_arg_132 *arg);
     virtual bool skeleton_func133(skeleton_arg133 *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_skeleton() {
         memset(&stack__skeleton, 0, sizeof(stack__skeleton));
     };
     virtual ~NC_STACK_skeleton() {};
-
-    virtual const char * getClassName() {
-        return "skeleton.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

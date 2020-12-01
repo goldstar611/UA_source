@@ -76,31 +76,31 @@ size_t NC_STACK_amesh::func0(IDVList &stak)
     if ( !NC_STACK_area::func0(stak) )
         return 0;
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case ADE_ATT_DPTHFADE:
-                setADE_depthFade ( val.value.i_data );
+                setADE_depthFade ( val.Get<int32_t>() );
                 break;
             case AREA_ATT_TEXBITM:
-                setAREA_bitm((NC_STACK_bitmap *)val.value.p_data);
+                setAREA_bitm(val.Get<NC_STACK_bitmap *>());
                 break;
 
             case AREA_ATT_TRACYBITM:
-                setAREA_tracybitm((NC_STACK_bitmap *)val.value.p_data);
+                setAREA_tracybitm(val.Get<NC_STACK_bitmap *>());
                 break;
 
             case AMESH_ATT_NUMPOLY:
-                setAMESH_numpoly(val.value.i_data);
+                setAMESH_numpoly(val.Get<int32_t>());
                 break;
 
             case AMESH_ATT_ATTPOLYS:
-                if ( !setAMESH_polys( (ATTS *)val.value.p_data ) )
+                if ( !setAMESH_polys( val.Get<ATTS *>() ) )
                 {
                     func1();
                     return 0;
@@ -108,7 +108,7 @@ size_t NC_STACK_amesh::func0(IDVList &stak)
                 break;
 
             case AMESH_ATT_OTLPOOL:
-                if ( !setAMESH_otls((tUtV **)val.value.p_data) )
+                if ( !setAMESH_otls(val.Get<tUtV **>()) )
                 {
                     func1();
                     return 0;
@@ -141,66 +141,6 @@ size_t NC_STACK_amesh::func1()
     return NC_STACK_area::func1();
 }
 
-size_t NC_STACK_amesh::func2(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case ADE_ATT_DPTHFADE:
-                setADE_depthFade ( val.value.i_data );
-                break;
-            case AREA_ATT_TEXBITM:
-                setAREA_bitm((NC_STACK_bitmap *)val.value.p_data);
-                break;
-
-            case AREA_ATT_TRACYBITM:
-                setAREA_tracybitm((NC_STACK_bitmap *)val.value.p_data);
-                break;
-
-            case AMESH_ATT_ATTPOLYS:
-                setAMESH_polys((ATTS *)val.value.p_data);
-                break;
-
-            case AMESH_ATT_OTLPOOL:
-                setAMESH_otls((tUtV **)val.value.p_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_area::func2(stak);
-}
-
-size_t NC_STACK_amesh::func3(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case AMESH_ATT_NUMPOLY:
-                *(int *)val.value.p_data = getAMESH_numpoly();
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_area::func3(stak);
-}
 
 size_t NC_STACK_amesh::func5(IFFile **file)
 {
@@ -499,7 +439,7 @@ size_t NC_STACK_amesh::ade_func65(area_arg_65 *arg)
                 if (datSub->vertexes[j].z > maxz)
                     maxz = datSub->vertexes[j].z;
 
-            if ( NC_STACK_win3d::win3d_keys[18].value.val )
+            if ( !(arg->flags & NC_STACK_display::RFLAGS_IGNORE_FALLOFF) && NC_STACK_win3d::win3d_keys[18].Get<bool>() )
             {
                 float maxln = 0.0;
 
@@ -510,7 +450,7 @@ size_t NC_STACK_amesh::ade_func65(area_arg_65 *arg)
                         maxln = datSub->distance[j];
                 }
 
-                if (maxln > NC_STACK_win3d::win3d_keys[19].value.val)
+                if (maxln > NC_STACK_win3d::win3d_keys[19].Get<int>())
                     datSub->renderFlags |= NC_STACK_display::RFLAGS_FALLOFF;
             }
 
@@ -584,33 +524,4 @@ int NC_STACK_amesh::setAMESH_otls(tUtV **uv)
 int NC_STACK_amesh::getAMESH_numpoly()
 {
     return stack__amesh.polyCnt;
-}
-
-
-
-size_t NC_STACK_amesh::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return func2( *(IDVList *)data );
-        return 1;
-    case 3:
-        return func3( *(IDVList *)data );
-        return 1;
-    case 5:
-        return (size_t)func5( (IFFile **)data );
-    case 6:
-        return (size_t)func6( (IFFile **)data );
-    case 65:
-        ade_func65( (area_arg_65 *)data );
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_area::compatcall(method_id, data);
 }

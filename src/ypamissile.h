@@ -8,7 +8,7 @@ class NC_STACK_ypamissile: public NC_STACK_ypabact
 {
 protected:
     // Bomb rotation speed
-    const int BOMB_MIN_ANGLE = 0.001;
+    const double BOMB_MIN_ANGLE = 0.001;
         
 public:
     
@@ -33,7 +33,6 @@ public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
     virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual void AI_layer1(update_msg *arg);
     virtual void AI_layer2(update_msg *arg);
     virtual void AI_layer3(update_msg *arg);
@@ -43,16 +42,15 @@ public:
     virtual void Renew();
     virtual size_t SetStateInternal(setState_msg *arg);
     virtual void ResetViewing();
-    virtual void ApplyImpulse(); // Apply impulse to all in sector
+    virtual void Impact(); // Apply impulse to all in sector
     virtual void AlignMissile(float dtime = 0.0);
     virtual void AlignMissileByNormal(const vec3d &normal);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ypamissile();
     virtual ~NC_STACK_ypamissile() {};
-
-    virtual const char * getClassName() {
-        return "ypamissile.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

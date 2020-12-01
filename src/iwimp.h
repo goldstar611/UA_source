@@ -20,14 +20,13 @@ public:
     virtual void RemoveClickBox(ClickBox *box);
     virtual void CheckClick(ClickBoxInf *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_iwimp() {
         clear();
     };
     virtual ~NC_STACK_iwimp() {};
-
-    virtual const char * getClassName() {
-        return "iwimp.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

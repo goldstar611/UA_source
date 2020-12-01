@@ -3,6 +3,7 @@
 
 #include <string.h>
 #include <array>
+#include <string>
 
 #include "types.h"
 #include "memstream.h"
@@ -45,7 +46,7 @@ struct subSec;
 struct secType;
 struct VhclProto;
 struct WeapProto;
-struct BuildProto;
+struct TBuildingProto;
 struct roboProto;
 struct map_event;
 struct uamessage_base;
@@ -55,6 +56,18 @@ struct uamessage_vhclDataI;
 
 namespace World
 {
+   
+enum
+{
+    FRACTION_MAXCOUNT = 8,
+};
+    
+enum BLIST_TYPES
+{
+    BLIST_UNITS = 1, // Used in world for store all bacts
+    BLIST_CACHE = 2, // Used in world for store cached dead bacts
+    BLIST_KIDS  = 3, // Used in bact class for store kid units
+};
 
 enum COLOR_IDS
 {
@@ -134,59 +147,59 @@ enum PREFERENCES_FLAGS
     PREF_ALTJOYSTICK    = 0x200,
 };
 
-enum KEYCONF
+enum INPUT_BIND
 {
-    KEYC_TYPE_BUTTON        = 1,
-    KEYC_TYPE_SLIDER        = 2,
-    KEYC_TYPE_HOTKEY        = 3,
+    INPUT_BIND_TYPE_BUTTON        = 1,
+    INPUT_BIND_TYPE_SLIDER        = 2,
+    INPUT_BIND_TYPE_HOTKEY        = 3,
 
-    KEYC_PAUSE      = 1,
-    KEYC_QUIT       = 2,
-    KEYC_DRIVE_DIR  = 3,
-    KEYC_DRIVE_SPEED= 4,
-    KEYC_GUN_HEIGHT = 5,
-    KEYC_FLY_HEIGHT = 6,
-    KEYC_FLY_SPEED  = 7,
-    KEYC_FLY_DIR    = 8,
-    KEYC_BRAKE      = 9,
-    KEYC_FIRE       = 10,
-    KEYC_CAMFIRE    = 11,
-    KEYC_GUN        = 12,
-    KEYC_SET_COMM   = 13,
-    KEYC_HUD        = 14,
-    KEYC_AUTOPILOT  = 15,
-    KEYC_ORDER      = 16,
-    KEYC_NEW        = 17,
-    KEYC_ADD        = 18,
-    KEYC_SQ_MANAGE  = 19,
-    KEYC_AGGR_1     = 20,
-    KEYC_AGGR_2     = 21,
-    KEYC_AGGR_3     = 22,
-    KEYC_AGGR_4     = 23,
-    KEYC_AGGR_5     = 24,
-    KEYC_MAP        = 25,
-    KEYC_WAPOINT    = 26,
-    KEYC_LANDLAYER  = 27,
-    KEYC_OWNER      = 28,
-    KEYC_HEIGHT     = 29,
-    KEYC_MINIMAP    = 30,
-    KEYC_LOCKVIEW   = 31,
-    KEYC_ZOOMIN     = 32,
-    KEYC_ZOOMOUT    = 33,
-    KEYC_LOG_WND    = 34,
-    KEYC_CONTROL    = 35,
-    KEYC_LAST_SEAT  = 36,
-    KEYC_ATTACK     = 37,
-    KEYC_TO_HOST    = 38,
-    KEYC_TO_COMM    = 39,
-    KEYC_NEXT_UNIT  = 40,
-    KEYC_NEXT_COMM  = 41,
-    KEYC_LAST_MSG   = 42,
-    KEYC_TO_ALL     = 43,
-    KEYC_HELP       = 44,
-    KEYC_ANALYZER   = 45,
+    INPUT_BIND_PAUSE      = 1,
+    INPUT_BIND_QUIT       = 2,
+    INPUT_BIND_DRIVE_DIR  = 3,
+    INPUT_BIND_DRIVE_SPEED= 4,
+    INPUT_BIND_GUN_HEIGHT = 5,
+    INPUT_BIND_FLY_HEIGHT = 6,
+    INPUT_BIND_FLY_SPEED  = 7,
+    INPUT_BIND_FLY_DIR    = 8,
+    INPUT_BIND_BRAKE      = 9,
+    INPUT_BIND_FIRE       = 10,
+    INPUT_BIND_CAMFIRE    = 11,
+    INPUT_BIND_GUN        = 12,
+    INPUT_BIND_SET_COMM   = 13,
+    INPUT_BIND_HUD        = 14,
+    INPUT_BIND_AUTOPILOT  = 15,
+    INPUT_BIND_ORDER      = 16,
+    INPUT_BIND_NEW        = 17,
+    INPUT_BIND_ADD        = 18,
+    INPUT_BIND_SQ_MANAGE  = 19,
+    INPUT_BIND_AGGR_1     = 20,
+    INPUT_BIND_AGGR_2     = 21,
+    INPUT_BIND_AGGR_3     = 22,
+    INPUT_BIND_AGGR_4     = 23,
+    INPUT_BIND_AGGR_5     = 24,
+    INPUT_BIND_MAP        = 25,
+    INPUT_BIND_WAPOINT    = 26,
+    INPUT_BIND_LANDLAYER  = 27,
+    INPUT_BIND_OWNER      = 28,
+    INPUT_BIND_HEIGHT     = 29,
+    INPUT_BIND_MINIMAP    = 30,
+    INPUT_BIND_LOCKVIEW   = 31,
+    INPUT_BIND_ZOOMIN     = 32,
+    INPUT_BIND_ZOOMOUT    = 33,
+    INPUT_BIND_LOG_WND    = 34,
+    INPUT_BIND_CONTROL    = 35,
+    INPUT_BIND_LAST_SEAT  = 36,
+    INPUT_BIND_ATTACK     = 37,
+    INPUT_BIND_TO_HOST    = 38,
+    INPUT_BIND_TO_COMM    = 39,
+    INPUT_BIND_NEXT_UNIT  = 40,
+    INPUT_BIND_NEXT_COMM  = 41,
+    INPUT_BIND_LAST_MSG   = 42,
+    INPUT_BIND_TO_ALL     = 43,
+    INPUT_BIND_HELP       = 44,
+    INPUT_BIND_ANALYZER   = 45,
 
-    KEYC_KEY_NUMBER = 46,
+    INPUT_BIND_MAX        = 46,
 };
 
 enum SOUND_ID
@@ -299,7 +312,7 @@ inline uint32_t GetUpgradeLogID(uint8_t upg)
 }
 }
 
-};
+}
 
 
 
@@ -336,20 +349,6 @@ struct audiotrack_adv
     int min_delay;
     int max_delay;
     audiotrack_adv() : min_delay(0), max_delay(0) {};
-};
-
-struct inp_key_setting
-{
-    int16_t inp_type;
-    int16_t keyID;
-    int16_t KeyCode;
-    int16_t slider_neg;
-    int16_t field_8;
-    int16_t field_A;
-    int16_t field_C;
-    int16_t field_E;
-    int field_10;
-    const char *slider_name;
 };
 
 
@@ -433,6 +432,30 @@ class UserData
 friend class World::Parsers::ShellSoundParser;
 
 public:
+    struct TInputConf
+    {
+        uint8_t Type;
+        int16_t KeyID;
+        int16_t PKeyCode;
+        int16_t NKeyCode;
+        int16_t PKeyCodeBkp;
+        int16_t NKeyCodeBkp;
+        int16_t PKeyCodeDef;
+        int16_t NKeyCodeDef;
+        uint8_t SetFlags;
+        
+        TInputConf()
+        : Type(0), KeyID(0), PKeyCode(0), NKeyCode(0)
+        , PKeyCodeBkp(0), NKeyCodeBkp(0), PKeyCodeDef(0), NKeyCodeDef(0)
+        , SetFlags(0) {};
+        
+        TInputConf(uint8_t type, int16_t keyID, int16_t pKey, int16_t nKey = 0)
+        : Type(type), KeyID(keyID), PKeyCode(pKey), NKeyCode(nKey)
+        , PKeyCodeBkp(pKey), NKeyCodeBkp(nKey), PKeyCodeDef(pKey), NKeyCodeDef(nKey)
+        , SetFlags(0) {};
+    };
+
+public:
     int field_0x0;
     int field_0x4;
     int field_0x8;
@@ -442,7 +465,7 @@ public:
 
     NC_STACK_ypaworld *p_YW;
     NC_STACK_ypaworld *p_ypaworld;
-    struC5 *_input;
+    InputState *_input;
     int frameTime;
     uint32_t glblTime;
 
@@ -462,7 +485,7 @@ public:
     NC_STACK_button *titel_button;
     NC_STACK_button *button_input_button;
     GuiList input_listview;
-    int field_D36;
+    size_t field_D36;
     int field_D3A;
     bool inp_joystick;
     int field_D42;
@@ -543,7 +566,7 @@ public:
     int16_t netSelMode;
     int16_t netSel;
     int nInputMode;
-    char netName[64];
+    std::string netName;
 
     int16_t netNameCurPos;
     int16_t netLevelID;
@@ -592,7 +615,8 @@ public:
 
     EnvAction envAction;
 
-    inp_key_setting keyConfig[46];
+    std::array<TInputConf, World::INPUT_BIND_MAX>  InputConfig;
+    std::array<std::string, World::INPUT_BIND_MAX> InputConfigTitle;
 
     int16_t field_3426;
     int16_t shelltrack;
@@ -637,8 +661,8 @@ public:
     void ypaworld_func158__sub0__sub1();
     void ypaworld_func158__sub0__sub3();
     void yw_returnToTitle();
-    void sb_0x46a8c0();
-    void sb_0x46a8c0__sub0();
+    void InputPageCancel();
+    void InputConfCancel();
     void sub_46A3C0();
     void sub_46C914();
     void sub_46C748();
@@ -664,8 +688,8 @@ public:
     int ypaworld_func158__sub0__sub7();
     void sub_46D9E0(int a2, const char *txt1, const char *txt2, int a5);
     void sub_46D2B4();
-    void sub_457BC0();
-    void ypaworld_func158__sub0__sub0();
+    void InputConfCopyToBackup();
+    void InputConfigRestoreDefault();
     void sub_46C5F0(int a2);
     void  ypaworld_func158__sub0__sub5(int a2);
     void sub_46A7F8();
@@ -673,7 +697,7 @@ public:
 
     bool  ShellSoundsLoad();
 
-    static int KeyIndexFromConfig(uint32_t type, uint32_t index);
+    static int InputIndexFromConfig(uint32_t type, uint32_t index);
 
 protected:
     bool LoadSample(int block, int sampleID, const std::string &file);
@@ -736,7 +760,7 @@ enum CELL_PFLAGS
     CELL_PFLAGS_IN_OLST = 2  // Sector in open list
 };
 
-struct cellArea : public nnode
+struct cellArea
 {
     int pos_x;
     int pos_y;
@@ -745,8 +769,6 @@ struct cellArea : public nnode
     char pf_flags; // Pathfind flags
     float cost_to_this;
     float cost_to_target;
-    nlist pf_treelist;
-    nnode pf_treenode;
     cellArea *pf_treeup;
 
     uint8_t owner;
@@ -757,12 +779,11 @@ struct cellArea : public nnode
     uint8_t view_mask; // Who can view this sector (mask)
     char w_type;
     uint8_t w_id;
-    nlist units_list; // Units in this sector
-    World::CellBactList unitsList;
+    World::RefBactList unitsList; // Units in this sector
     float height;
     float averg_height;
     
-    cellArea() : unitsList(this, NC_STACK_ypabact::CellClearCallback) { clear(); };
+    cellArea() : unitsList(this, NC_STACK_ypabact::GetCellRefNode) { clear(); };
     
     int GetEnergy()
     {
@@ -806,7 +827,6 @@ struct cellArea : public nnode
         w_type = 0;
         w_id = 0;
         
-        init_list(&units_list);
         unitsList.clear();
         
         height = 0.0;
@@ -1599,7 +1619,7 @@ struct yw_field34
 
 struct yw_f30
 {
-    char owner;
+    uint8_t owner;
     uint8_t field_1;
 };
 
@@ -1938,67 +1958,43 @@ struct WeapProto
     }
 };
 
-struct buildSbact
+
+
+struct TBuildingProto
 {
-    int sbact_vehicle;
-    int field_4;
-    float sbact_pos_x;
-    float sbact_pos_y;
-    float sbact_pos_z;
-    int field_14;
-    float sbact_dir_x;
-    float sbact_dir_y;
-    float sbact_dir_z;
-
-    buildSbact()
+    struct TGun
     {
-        clear();
-    }
+        int32_t VhclID;
+        vec3d Pos;
+        vec3d Dir;
 
-    void clear()
+        TGun()
+        {
+            VhclID = 0;
+            Pos = vec3d();
+            Dir = vec3d();
+        }
+    };
+
+    
+    uint8_t SecType;
+    uint8_t EnableMask;
+    uint8_t ModelID;
+    uint8_t Power;
+    uint8_t TypeIcon;
+    std::string Name;
+    int Energy;
+    vhclSndFX SndFX;
+    std::array<TGun, 8> Guns;
+
+    TBuildingProto()
     {
-        sbact_vehicle = 0;
-        field_4 = 0;
-        sbact_pos_x = 0.;
-        sbact_pos_y = 0.;
-        sbact_pos_z = 0.;
-        field_14 = 0;
-        sbact_dir_x = 0.;
-        sbact_dir_y = 0.;
-        sbact_dir_z = 0.;
-    }
-};
-
-struct BuildProto
-{
-    uint8_t sec_type;
-    uint8_t enable_mask;
-    uint8_t model_id;
-    uint8_t power;
-    uint8_t type_icon;
-    std::string name;
-    int energy;
-    vhclSndFX sndfx;
-    std::array<buildSbact, 8> sbacts;
-
-    BuildProto()
-    {
-        clear();
-    }
-
-    void clear()
-    {
-        sec_type = 0;
-        enable_mask = 0;
-        model_id = 0;
-        power = 0;
-        type_icon = 0;
-        name.clear();
-        energy = 0;
-        sndfx.clear();
-
-        for (auto &x : sbacts)
-            x.clear();
+        SecType = 0;
+        EnableMask = 0;
+        ModelID = 0;
+        Power = 0;
+        TypeIcon = 0;
+        Energy = 0;
     }
 };
 
@@ -2089,7 +2085,7 @@ struct yw_arg181
     int dataSize;
     const char *senderID;
     int senderFlags;
-    char *recvID;
+    const char *recvID;
     int recvFlags;
     int garant;
 };
@@ -2104,12 +2100,6 @@ struct yw_174arg
 {
     int resolution;
     int make_changes;
-};
-
-struct yw_arg169
-{
-    UserData *usr;
-    const char *saveFile;
 };
 
 struct ypaworld_arg146
@@ -2262,8 +2252,6 @@ friend class World::Parsers::SaveSuperBombParser;
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t base_func64(base_64arg *arg);
     virtual void ypaworld_func129(yw_arg129 *arg);
     virtual size_t ypaworld_func130(yw_130arg *arg);
@@ -2285,7 +2273,7 @@ public:
     virtual size_t ypaworld_func148(ypaworld_arg148 *arg);
     virtual void ypaworld_func149(ypaworld_arg136 *arg);
     virtual void ypaworld_func150(yw_arg150 *arg);
-    virtual void ypaworld_func151();
+    virtual void DeleteLevel();
     virtual void ypaworld_func153(bact_hudi *arg);
     virtual size_t ypaworld_func154(UserData *usr);
     virtual void ypaworld_func155(UserData *usr);
@@ -2302,8 +2290,8 @@ public:
     virtual size_t ypaworld_func166(const char **langname);
     virtual void ypaworld_func167(UserData *usr);
     virtual size_t ypaworld_func168(NC_STACK_ypabact *pbact);
-    virtual size_t ypaworld_func169(yw_arg169 *arg);
-    virtual size_t ypaworld_func170(yw_arg169 *arg);
+    virtual size_t LoadGame(const std::string &saveFile);
+    virtual size_t SaveGame(const std::string &saveFile);
     virtual size_t ypaworld_func171(yw_arg172 *arg);
     virtual size_t ypaworld_func172(yw_arg172 *arg);
     virtual size_t ypaworld_func173(UserData *usr);
@@ -2316,16 +2304,14 @@ public:
     virtual bool ypaworld_func181(void *arg);
     virtual void ypaworld_func182(void *arg);
     virtual size_t ypaworld_func183(yw_arg161 *arg);
-    virtual void ypaworld_func184(const World::History::Record &arg);
+    virtual void HistoryEventAdd(const World::History::Record &arg);
     virtual void ypaworld_func185(void *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ypaworld();
     virtual ~NC_STACK_ypaworld() {};
-
-    virtual const char * getClassName()
-    {
-        return "ypaworld.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance()
@@ -2361,7 +2347,7 @@ public:
         YW_ATT_LVL_INFO = 0x8000201A,
         YW_ATT_DESTROY_FX = 0x8000201B,
         YW_ATT_PNET = 0x8000201C,
-        YW_ATT_BUILD_DATE = 0x8000201D,
+        YW_ATT_BUILD_DATE = 0x8000201D,     //std::string
         YW_ATT_DONT_RENDER = 0x8000201E,
         YW_ATT_INVULNERABLE = 0x8000201F
     };
@@ -2393,7 +2379,7 @@ public:
     virtual NC_STACK_ypabact *getYW_userHostStation();
     virtual NC_STACK_ypabact *getYW_userVehicle();
     virtual WeapProto *getYW_weaponProtos();
-    virtual BuildProto *getYW_buildProtos();
+    virtual TBuildingProto *getYW_buildProtos();
     virtual VhclProto *getYW_vhclProtos();
     virtual int getYW_lvlFinished();
     virtual int getYW_screenW();
@@ -2405,7 +2391,7 @@ public:
     virtual int getYW_invulnerable();
 
 protected:
-    int LVLoaderCommon(LevelDesc &mapp, int levelID, int a5);
+    int LevelCommonLoader(LevelDesc *mapp, int levelID, int a5);
     void FFeedback_Init();
     void FFeedback_StopAll();
     void FFeedback_VehicleChanged();
@@ -2413,8 +2399,8 @@ protected:
 
     void GUI_Close();
 
-    void CameraPrepareRender(recorder *rcrd, NC_STACK_ypabact *bact, struC5 *inpt);
-    bool IsAnyInput(struC5 *struc);
+    void CameraPrepareRender(recorder *rcrd, NC_STACK_ypabact *bact, InputState *inpt);
+    bool IsAnyInput(InputState *struc);
 
 
     void GameShellUiOpenNetwork(); // On main menu "Multiplayer" press
@@ -2423,7 +2409,7 @@ protected:
     void GameShellInitBkgMode(int mode);
     bool GameShellInitBkg();
 
-    int  ypaworld_func158__sub0__sub0__sub0();
+    int  InputConfigLoadDefault();
 
 public:
     void GuiWinToFront(GuiBase *);
@@ -2455,8 +2441,8 @@ public:
     void sub_4D12D8(int id, int a3);
     void sub_4D1594(int id);
     void sub_4D1444(int id);
-    int ypaworld_func169__sub1(const std::string &filename);
-    void ypaworld_func169__sub2();
+    int LoadingParseSaveFile(const std::string &filename);
+    void LoadingUnitsRefresh();
     int ypaworld_func172__sub0(const std::string &fname, int parsers_mask);
     void listSaveDir(const std::string &saveDir);
     int yw_InitLevelNet();
@@ -2469,15 +2455,17 @@ public:
     int load_fonts_and_icons();
     int yw_LoadSet(int setID);
     
-    void sb_0x47b028(NC_STACK_ypaworld *yw, NC_STACK_ypabact *bct1, NC_STACK_ypabact *bct2, int a3);
+    //PRT - Position Robo Target
+    void RefreshUnitPRT(NC_STACK_ypabact *unit, NC_STACK_ypabact *robo, bool isRobo); 
+    NC_STACK_ypabact * sb_0x47b028__sub0(uint32_t bactid); // CHECK IT
+    
     void yw_processVhclDataMsgs(uamessage_vhclData *msg, NC_STACK_ypabact *host_node);
     NC_STACK_ypabact * yw_getHostByOwner(uint8_t owner);
     void yw_netApplyVhclDataE(NC_STACK_ypabact *bact, uamessage_vhclDataE *dat, int id, uint32_t timestamp);
     void yw_netApplyVhclDataI(NC_STACK_ypabact *bact, uamessage_vhclDataI *dat, int id, uint32_t timestamp);
-    void sub_4C8EB4(NC_STACK_ypabact *bct);
-    void sub_4F1B34(NC_STACK_ypabact *bact);
+    void NetRemove(NC_STACK_ypabact *bct);
+    void NetReleaseMissiles(NC_STACK_ypabact *bact);
     void sub_4F1BE8(NC_STACK_ypabact *bct);
-    void sub_4F1A60(NC_STACK_ypabact *bact);
     void BriefingSetObject(const BriefObject &obj, bool doAdd);
     
     
@@ -2491,6 +2479,18 @@ public:
     void yw_InitSquads(const std::vector<MapSquad> &squads);
     
     
+    NC_STACK_ypabact *yw_createUnit(int model_id);
+    void sb_0x456384(int x, int y, int ownerid2, int blg_id, int a7);
+    int sb_0x456384__sub0(int x, int y, int power);
+    void sb_0x456384__sub0__sub0();
+    
+    void CellSetOwner(cellArea *cell, char secX, char secY, uint8_t owner);
+    int ypaworld_func148__sub1(int id, int a4, int x, int y, int ownerID2, char blg_ID);
+    
+    void debug_info_draw(InputState *inpt);
+    void debug_count_units();
+    
+    
     void SendCRC(int lvlid);
     
     void UpdateGuiSettings();
@@ -2498,6 +2498,108 @@ public:
     
     void HistoryAktCreate(NC_STACK_ypabact *bact);
     void HistoryAktKill(NC_STACK_ypabact *bact);
+    
+    
+    int sub_449678(InputState *struc, int kkode);
+    
+    bool yw_write_units(FSMgr::FileHandle *fil);
+    bool yw_write_robo(NC_STACK_yparobo *robo, FSMgr::FileHandle *fil);
+    
+    void ypaworld_func64__sub6__sub0();
+    
+    void ypaworld_func64__sub19__sub2__sub0__sub0(uint8_t activate, float a5, float a6, float a7);
+    void ypaworld_func64__sub19__sub2__sub0(int id);
+    void ypaworld_func64__sub19__sub2(int id);
+    void ypaworld_func64__sub19__sub1(int id);
+    void ypaworld_func64__sub19__sub0(int id);
+    void ypaworld_func64__sub19();
+    void sub_4D16C4(int id);
+    bool sub_4D1230(int id, int a3);
+    bool sub_4D11C0(int id, int owner);
+    bool sub_4D12A0(int owner);
+    
+    void sub_4C40AC();
+    NC_STACK_ypabact *GetLastMsgSender();
+    
+    void ypaworld_func64__sub7(InputState *inpt);
+    void ypaworld_func64__sub7__sub4(InputState *inpt);
+    void ypaworld_func64__sub7__sub4__sub0(int a2);
+    void ypaworld_func64__sub7__sub3__sub4(NC_STACK_ypabact *bact);
+    bool ypaworld_func64__sub7__sub3__sub2();
+    
+    void yw_MouseSelect(InputState *arg);
+    void ypaworld_func64__sub21__sub1__sub0(InputState *arg);
+    
+    void yw_MAP_MouseSelect(ClickBoxInf *winp);
+    
+    void ypaworld_func64__sub21__sub1__sub3__sub0(ClickBoxInf *winp);
+    void yw_3D_MouseSelect(ClickBoxInf *winp);
+    
+    void ypaworld_func64__sub21(InputState *arg);
+    void ypaworld_func64__sub21__sub7();
+    float sub_4498F4();
+    
+    int ypaworld_func64__sub7__sub3__sub1(ClickBoxInf *winpt);
+    void yw_SMAN_MouseSelect(ClickBoxInf *winp);
+    void SquadManager_InputHandle(InputState *inpt);
+    NC_STACK_ypabact * sub_4C7B0C(int sqid, int a3);
+    
+    bool recorder_create_camera();
+    void recorder_updateObjectList(recorder *rcrd, float a5, int period);
+    void recorder_updateObject(NC_STACK_ypabact *bact, trec_bct *oinf, uint16_t *ssnd, float a5, float a6);
+    void recorder_set_bact_pos(NC_STACK_ypabact *bact, const vec3d &pos);
+    int recorder_go_to_frame(recorder *rcrd, int wanted_frame_id);
+    void recorder_store_bact(recorder *rcrd, World::RefBactList &bct_lst);
+    void recorder_store_bact( recorder *rcrd, World::MissileList &bct_lst);
+    void recorder_world_to_frame(recorder *rcrd);
+    void recorder_write_frame();
+    NC_STACK_ypabact *recorder_newObject(trec_bct *oinf);
+    void ypaworld_func163__sub1(recorder *rcrd, int a3);
+    
+    void sub_4811E8(int id);
+    void ypaworld_func64__sub1(InputState *inpt);
+    void ypaworld_func64__sub21__sub5(int arg);
+    
+    
+    bool ypaworld_func64__sub21__sub6(ClickBoxInf *winp);
+    int ypaworld_func64__sub21__sub4(InputState *arg, int a3);
+    int ypaworld_func64__sub21__sub3();
+    int ypaworld_func64__sub21__sub2();
+    int sb_0x4d3d44(ClickBoxInf *winp);
+    void ypaworld_func64__sub7__sub6(InputState *inpt);
+    
+    int yw_MouseFindCreationPoint(ClickBoxInf *winp);
+    
+    void sb_0x4c87fc(const char *a2, GuiBase *lstvw);
+    void sub_47DB04(char a2);
+    void sub_449DE8(const char *a2);
+    
+    void LoadKeyNames();
+    
+    
+    void InitGates();
+    void UpdatePowerEnergy();
+    void PowerStationErase(size_t id);
+    void CellSetNewOwner(int secX, int secY, cellArea *cell, yw_arg129 *a5, int newOwner);
+    void CellCheckHealth(cellArea *cell, int secX, int secY, int a5, yw_arg129 *a6);
+    void InitBuddies();
+    void InitSuperItems();
+    bool LoadBlgMap(const std::string &mapName);
+    bool LoadHightMap(const std::string &mapName);
+    bool LoadOwnerMap(const std::string &mapName);
+    bool LoadTypeMap(const std::string &mapName);
+    
+    
+    int sb_0x44ca90__sub7(int event_loop_id);
+    
+    //Event funcs
+    static int sub_4D528C(NC_STACK_ypaworld *);
+    static int sub_4D51A4(NC_STACK_ypaworld *);
+    static int sub_4D5218(NC_STACK_ypaworld *);
+    static int sub_4D5160(NC_STACK_ypaworld *);
+    static int sub_4D5300(NC_STACK_ypaworld *);
+    static int sub_4D5348(NC_STACK_ypaworld *);
+    static int sub_4D5360(NC_STACK_ypaworld *);
     
 
 public:
@@ -2508,29 +2610,29 @@ public:
     
     UserData *GameShell;
     base_64arg *b64_parms;
-    int sectors_maxX;
-    int sectors_maxY;
-    int sectors_maxX2;
-    int sectors_maxY2;
-    cellArea *cells;
+    int _mapAbsMaxX;
+    int _mapAbsMaxY;
+    int _mapWidth;
+    int _mapHeight;
+    cellArea *_cells;
 
     float map_Width_meters;
     float map_Height_meters;
     yw_f30 *field_30;
-    yw_field34 *field_34;
-    int field_38;
-    int field_3c;
+    yw_field34 *_powerStations;
+    size_t _powerStationsCount;
+    int _lastUpdatedPowerStationID;
     int set_number;
     NC_STACK_base *additionalSet;
-    nlist bact_list;
-    nlist dead_cache;
+    World::RefBactList _unitsList;
+    World::RefBactList _deadCacheList;
     vhclBases *vhcls_models;
     cityBases *legos;
     subSec *subSectors;
     secType *secTypes;
     VhclProto *VhclProtos;
     WeapProto *WeaponProtos;
-    std::vector<BuildProto> BuildProtos;
+    std::vector<TBuildingProto> BuildProtos;
     std::vector<roboProto> RoboProtos;
     yw_f80 field_80[8];
     int16_t build_hp_ref[256];
@@ -2570,7 +2672,7 @@ public:
     int timeStamp;
     int field_1618;
     int field_161c;
-    char *buildDate;
+    std::string buildDate;
     int field_1624;
     int16_t field_1628;
     int16_t field_162A;
@@ -2582,10 +2684,10 @@ public:
 
     int isDragging;
     GuiBase *draggingItem;
-    shortPoint draggingPos;
+    Common::Point draggingPos;
     bool draggingLock;
 
-    int field_17c0; // Grab mouse for unit steer-turn
+    int _mouseGrabbed; // Grab mouse for unit steer-turn
     int field_17c4;
     int field_17c8;
     const char **tooltips;
@@ -2646,18 +2748,18 @@ public:
     int field_1b74;
     NC_STACK_ypabact *UserRobo;
     NC_STACK_ypabact *UserUnit;
-    nlist *field_1b88;
+    World::RefBactList *_UserRoboKidsList;
     int sectors_count_by_owner[8];
     int field_1bac[8];
     float field_1bcc[8];
     float field_1bec[8];
-    NC_STACK_ypabact *field_1c0c[512];
-    int field_240c;
-    int field_2410;
-    int field_2414;
-    int field_2418;
+    NC_STACK_ypabact *_cmdrsRemap[512];
+    int _activeCmdrID;
+    int _activeCmdrRemapIndex;
+    int _cmdrsCount;
+    int _kidsCount;
     uint32_t field_241c;
-    NC_STACK_ypabact *field_2420;
+    NC_STACK_ypabact *_lastMsgSender;
     int field_2424;
     int do_screenshooting;
     int screenshot_seq_id; //Screenshoting sequence id

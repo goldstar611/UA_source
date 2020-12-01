@@ -23,14 +23,11 @@ class NC_STACK_ade: public NC_STACK_nucleus
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t func5(IFFile **file);
     virtual size_t func6(IFFile **file);
     virtual size_t ade_func64(AdeList &lst);
     virtual size_t ade_func65(area_arg_65 *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ade() {
         flags = 0;
         point = 0;
@@ -38,9 +35,9 @@ public:
         AttachedTo = NULL;
     };
     virtual ~NC_STACK_ade() {};
-
-    virtual const char * getClassName() {
-        return "ade.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

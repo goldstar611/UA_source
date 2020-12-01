@@ -38,14 +38,11 @@ class NC_STACK_rsrc: public NC_STACK_nucleus
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func3(IDVList &stak);
     virtual rsrc * rsrc_func64(IDVList &stak);
     virtual size_t rsrc_func65(rsrc *res);
     virtual size_t rsrc_func66(rsrc_func66_arg *arg) {
         return 0;
     };
-
-    virtual size_t compatcall(int method_id, void *data);
 
     NC_STACK_rsrc()
     {
@@ -54,9 +51,9 @@ public:
     };
 
     virtual ~NC_STACK_rsrc() {};
-
-    virtual const char * getClassName() {
-        return "rsrc.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -79,6 +76,7 @@ public:
 
     //Get
     virtual const char * getRsrc_name();
+    virtual const std::string getRsrc_name() const;
     virtual int getRsrc_tryShared();
     virtual void *getRsrc_pData();
     virtual int getRsrc_dontCopy();

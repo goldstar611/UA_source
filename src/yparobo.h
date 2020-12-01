@@ -69,7 +69,6 @@ public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
     virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual void AI_layer1(update_msg *arg);
     virtual void AI_layer3(update_msg *arg);
     virtual void User_layer(update_msg *arg);
@@ -89,12 +88,11 @@ public:
     virtual bool MakeSquad(const std::vector<int> &VhclIDS, vec3d pos, bool usable);
     virtual int placeMessage(robo_arg134 *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_yparobo();
     virtual ~NC_STACK_yparobo() {};
-
-    virtual const char * getClassName(){
-        return "yparobo.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -300,9 +298,9 @@ protected:
     void sub_4F4FF4(int a2, setTarget_msg *parg67);
     
     void yparobo_func71__sub0(update_msg *arg);
-    int yparobo_func70__sub4__sub2__sub0(BuildProto *protos);
-    int yparobo_func70__sub4__sub1__sub0(BuildProto *protos);
-    int yparobo_func70__sub4__sub0__sub0(BuildProto *protos);
+    int yparobo_func70__sub4__sub2__sub0(TBuildingProto *protos);
+    int yparobo_func70__sub4__sub1__sub0(TBuildingProto *protos);
+    int yparobo_func70__sub4__sub0__sub0(TBuildingProto *protos);
 
 
 public:

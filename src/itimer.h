@@ -12,18 +12,17 @@ struct __NC_STACK_itimer
 class NC_STACK_itimer: public NC_STACK_nucleus
 {
 public:
-    virtual int itimer_func64(void *) {
+    virtual int itimer_func64() {
         return 1;
     };
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_itimer() {
         memset(&stack__itimer, 0, sizeof(stack__itimer));
     };
     virtual ~NC_STACK_itimer() {};
-
-    virtual const char * getClassName() {
-        return "itimer.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

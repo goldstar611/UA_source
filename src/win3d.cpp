@@ -31,29 +31,29 @@ SDL_Cursor *cursors[11];
 
 const Nucleus::ClassDescr NC_STACK_win3d::description("win3d.class", &newinstance);
 
-key_value_stru NC_STACK_win3d::win3d_keys[21] =
+Common::Ini::KeyList NC_STACK_win3d::win3d_keys
 {
-    {"gfx.dither", KEY_TYPE_BOOL, 0},               //0
-    {"gfx.filter", KEY_TYPE_BOOL, 0},
-    {"gfx.antialias", KEY_TYPE_BOOL, 0},
-    {"gfx.alpha", KEY_TYPE_DIGIT, 0xC0},
-    {"gfx.zbuf_when_tracy", KEY_TYPE_BOOL, 0},
-    {"gfx.colorkey", KEY_TYPE_BOOL, 0},             //5
-    {"gfx.force_emul", KEY_TYPE_BOOL, 0},
-    {"gfx.force_soft_cursor", KEY_TYPE_BOOL, 0},
-    {"gfx.all_modes", KEY_TYPE_BOOL, 0},
-    {"gfx.movie_player", KEY_TYPE_BOOL, 1},
-    {"gfx.force_alpha_textures", KEY_TYPE_BOOL, 0}, //10
-    {"gfx.use_draw_primitive", KEY_TYPE_BOOL, 0},
-    {"gfx.disable_lowres", KEY_TYPE_BOOL, 0},
-    {"gfx.export_window_mode", KEY_TYPE_BOOL, 0},
-    {"gfx.blending", KEY_TYPE_DIGIT, 0},
-    {"gfx.solidfont", KEY_TYPE_BOOL, false},          //15
-    {"gfx.vsync", KEY_TYPE_DIGIT, 1},
-    {"gfx.maxfps", KEY_TYPE_DIGIT, 60},
-    {"gfx.newsky", KEY_TYPE_BOOL, false},
-    {"gfx.skydistance", KEY_TYPE_DIGIT, 3000},
-    {"gfx.skylength", KEY_TYPE_DIGIT, 500}               //20
+    Common::Ini::Key("gfx.dither",       Common::Ini::KT_BOOL),               //0
+    Common::Ini::Key("gfx.filter",       Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.antialias",    Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.alpha",        Common::Ini::KT_DIGIT, (int32_t)192),
+    Common::Ini::Key("gfx.zbuf_when_tracy", Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.colorkey",     Common::Ini::KT_BOOL),             //5
+    Common::Ini::Key("gfx.force_emul",   Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.force_soft_cursor", Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.all_modes",    Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.movie_player", Common::Ini::KT_BOOL, true),
+    Common::Ini::Key("gfx.force_alpha_textures", Common::Ini::KT_BOOL), //10
+    Common::Ini::Key("gfx.use_draw_primitive", Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.disable_lowres", Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.export_window_mode", Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.blending",     Common::Ini::KT_DIGIT),
+    Common::Ini::Key("gfx.solidfont",    Common::Ini::KT_BOOL),          //15
+    Common::Ini::Key("gfx.vsync",        Common::Ini::KT_DIGIT, (int32_t)1),
+    Common::Ini::Key("gfx.maxfps",       Common::Ini::KT_DIGIT, (int32_t)60),
+    Common::Ini::Key("gfx.newsky",       Common::Ini::KT_BOOL),
+    Common::Ini::Key("gfx.skydistance",  Common::Ini::KT_DIGIT, (int32_t)3000),
+    Common::Ini::Key("gfx.skylength",    Common::Ini::KT_DIGIT, (int32_t)500)               //20
 };
 
 
@@ -796,29 +796,38 @@ size_t NC_STACK_win3d::windd_func0(IDVList &stak)
 {
     int txt16bit_def = read_yes_no_status("env/txt16bit.def", 1);
     int drawprim_def = read_yes_no_status("env/drawprim.def", 0);
-    int export_window_mode = win3d_keys[13].value.val;     // gfx.export_window_mode
+    int export_window_mode = win3d_keys[13].Get<bool>();     // gfx.export_window_mode
 
-    if (win3d_keys[14].value.val == 0)
+    switch(win3d_keys[14].Get<int>())
     {
-        can_srcblend = 1;
-        can_destblend = 0;
-        can_stippling = 0;
-    }
-    else if (win3d_keys[14].value.val == 1)
-    {
-        can_srcblend = 1;
-        can_destblend = 1;
-        can_stippling = 0;
-    }
-    else if (win3d_keys[14].value.val == 2)
-    {
-        can_srcblend = 0;
-        can_destblend = 0;
-        can_stippling = 1;
+        case 0:
+        {
+            can_srcblend = 1;
+            can_destblend = 0;
+            can_stippling = 0;
+        }
+        break;
+        
+        default:
+        case 1:
+        {
+            can_srcblend = 1;
+            can_destblend = 1;
+            can_stippling = 0;
+        }
+        break;
+    
+        case 2:
+        {
+            can_srcblend = 0;
+            can_destblend = 0;
+            can_stippling = 1;
+        }
+        break;
     }
 
 
-    int v7 = stak.Get(ATT_DISPLAY_ID, 0);
+    int v7 = stak.Get<int32_t>(ATT_DISPLAY_ID, 0);
 
     gfxMode *picked = NULL;
     if ( v7 )
@@ -843,8 +852,8 @@ size_t NC_STACK_win3d::windd_func0(IDVList &stak)
     log_d3dlog(" picked mode %s\n", picked->name.c_str());
 
 
-    stak.Add(ATT_WIDTH, picked->w);
-    stak.Add(ATT_HEIGHT, picked->h);
+    stak.Add(ATT_WIDTH, (int32_t)picked->w);
+    stak.Add(ATT_HEIGHT, (int32_t)picked->h);
 
     if ( !NC_STACK_display::func0(stak) )
         return 0;
@@ -853,13 +862,13 @@ size_t NC_STACK_win3d::windd_func0(IDVList &stak)
 
     win3d->forcesoftcursor = 0;
     win3d->sort_id = picked->sortid;
-    win3d->movie_player = win3d_keys[9].value.val;
-    win3d->disable_lowres = win3d_keys[12].value.val;
+    win3d->movie_player = win3d_keys[9].Get<bool>();
+    win3d->disable_lowres = win3d_keys[12].Get<bool>();
     win3d->txt16bit = txt16bit_def;
     win3d->use_simple_d3d = drawprim_def;
     win3d->export_window_mode = export_window_mode;
 
-    win3d->solidFont = win3d_keys[15].value.val;
+    win3d->solidFont = win3d_keys[15].Get<bool>();
 
     win3d->windowed = picked->windowed; ////HACK
 
@@ -884,21 +893,26 @@ size_t NC_STACK_win3d::windd_func0(IDVList &stak)
     
     win3d->screenSurface = SDLWRAP::Screen();
 
-    if (win3d_keys[16].value.val == 0)
+    switch( win3d_keys[16].Get<int>() )
     {
-        SDL_GL_SetSwapInterval(0);
-    }
-    else if (win3d_keys[16].value.val == 1)
-    {
-        SDL_GL_SetSwapInterval(1);
-    }
-    else if (win3d_keys[16].value.val == 2)
-    {
-        if ( SDL_GL_SetSwapInterval(-1) == -1)
+        case 0:
+            SDL_GL_SetSwapInterval(0);
+            break;
+        
+        default:
+        case 1:
             SDL_GL_SetSwapInterval(1);
+            break;
+        
+        case 2:
+            {
+                if ( SDL_GL_SetSwapInterval(-1) == -1)
+                    SDL_GL_SetSwapInterval(1);
+            }
+            break;
     }
 
-    fpsLimitter(win3d_keys[17].value.val);
+    fpsLimitter(win3d_keys[17].Get<int>());
 
     load_font("MS Sans Serif,12,400,0");
 
@@ -938,18 +952,18 @@ size_t NC_STACK_win3d::windd_func0(IDVList &stak)
 
 size_t NC_STACK_win3d::func0(IDVList &stak)
 {
-    get_keyvalue_from_ini(0, win3d_keys, 21);
+    Common::Ini::ParseIniFile(DefaultIniFile, &win3d_keys);
 
     if ( !windd_func0(stak) )
         return 0;
 
     __NC_STACK_win3d *w3d = &stack__win3d;
 
-    w3d->dither = win3d_keys[0].value.val;
-    w3d->filter = win3d_keys[1].value.val;
-    w3d->antialias = win3d_keys[2].value.val;
-    w3d->zbuf_when_tracy = win3d_keys[4].value.val;
-    w3d->colorkey = win3d_keys[5].value.val;
+    w3d->dither = win3d_keys[0].Get<bool>();
+    w3d->filter = win3d_keys[1].Get<bool>();
+    w3d->antialias = win3d_keys[2].Get<bool>();
+    w3d->zbuf_when_tracy = win3d_keys[4].Get<bool>();
+    w3d->colorkey = win3d_keys[5].Get<bool>();
 
     if ( can_srcblend )
         w3d->alpha = 192;
@@ -1009,73 +1023,6 @@ size_t NC_STACK_win3d::func1()
     return NC_STACK_display::func1();
 }
 
-size_t NC_STACK_win3d::func2(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case WDD_ATT_CURSOR:
-                setWDD_cursor(val.value.i_data);
-                break;
-
-            case WDD_ATT_DIS_LOWRES:
-                setWDD_disLowRes(val.value.i_data);
-                break;
-
-            case WDD_ATT_16BIT_TEX:
-                setWDD_16bitTex(val.value.i_data);
-                break;
-
-            case WDD_ATT_DRAW_PRIM:
-                setWDD_drawPrim(val.value.i_data);
-                break;
-
-            case WDD_ATT_TEXFILT:
-                setW3D_texFilt(val.value.i_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_display::func2(stak);
-}
-
-size_t NC_STACK_win3d::func3(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case ATT_DISPLAY_ID:
-                *(int *)val.value.p_data = getDISP_displID();
-                break;
-            case WDD_ATT_16BIT_TEX:
-                *(int *)val.value.p_data = getWDD_16bitTex();
-                break;
-            case WDD_ATT_DRAW_PRIM:
-                *(int *)val.value.p_data = getWDD_drawPrim();
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_display::func3(stak);
-}
 
 size_t NC_STACK_win3d::raster_func192(IDVPair *)
 {
@@ -1595,7 +1542,7 @@ void NC_STACK_win3d::sb_0x43b518(polysDat *in, int a5, int a6)
         w3d->rendStates2[TEXTUREMAPBLEND] = 2;//D3DTBLEND_MODULATE;
     }
 
-    if (win3d_keys[18].value.val)
+    if (win3d_keys[18].Get<bool>())
     {
         if (polysDat->renderFlags & RFLAGS_SKY)
         {
@@ -1611,8 +1558,8 @@ void NC_STACK_win3d::sb_0x43b518(polysDat *in, int a5, int a6)
             w3d->rendStates2[SHADEMODE] = 1;//D3DSHADE_FLAT;
             w3d->rendStates2[STIPPLEENABLE] = 0;
 
-            float transDist = win3d_keys[19].value.val;
-            float transLen = win3d_keys[20].value.val;
+            float transDist = win3d_keys[19].Get<int>();
+            float transLen = win3d_keys[20].Get<int>();
 
             for (int i = 0; i < polysDat->vertexCount; i++)
             {
@@ -2181,7 +2128,7 @@ void NC_STACK_win3d::display_func272(IDVPair *)
 
 
 
-void win3d_func274__sub0(__NC_STACK_win3d *w3d, FSMgr::FileHandle *fil)
+void win3d_func274__sub0(FSMgr::FileHandle *fil)
 {
     int bf_w = 0, bf_h = 0;
 
@@ -2189,10 +2136,7 @@ void win3d_func274__sub0(__NC_STACK_win3d *w3d, FSMgr::FileHandle *fil)
 
     if (buf && bf_w && bf_h)
     {
-        char txtbuf[128];
-
-        sprintf(txtbuf, "P6\n#YPA screenshot\n%d %d\n255\n", bf_w, bf_h);
-        fil->write(txtbuf, strlen(txtbuf));
+        fil->printf("P6\n#YPA screenshot\n%d %d\n255\n", bf_w, bf_h);
 
         int lwidth = 3 * bf_w;
 
@@ -2218,19 +2162,12 @@ void win3d_func274__sub0(__NC_STACK_win3d *w3d, FSMgr::FileHandle *fil)
     }
 }
 
-void NC_STACK_win3d::display_func274(const char **name)
+void NC_STACK_win3d::SaveScreenshot(const std::string & screenName)
 {
-    __NC_STACK_win3d *w3d = &stack__win3d;
-
-    char filename[128];
-
-    strcpy(filename, *name);
-    strcat(filename, ".ppm");
-
-    FSMgr::FileHandle *fil = uaOpenFile(filename, "wb");
+    FSMgr::FileHandle *fil = uaOpenFile(fmt::sprintf("%s.ppm", screenName), "wb");
     if ( fil )
     {
-        win3d_func274__sub0(w3d, fil);
+        win3d_func274__sub0(fil);
         delete fil;
     }
 }
@@ -2511,111 +2448,37 @@ SDL_PixelFormat *NC_STACK_win3d::GetScreenFormat()
     return stack__win3d.screenSurface->format;
 }
 
-
-size_t NC_STACK_win3d::compatcall(int method_id, void *data)
+SDL_Surface *NC_STACK_win3d::CreateSurfaceScreenFormat(int width, int height)
 {
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return func2( *(IDVList *)data );
-    case 3:
-        func3( *(IDVList *)data );
-        return 1;
-    case 192:
-        return (size_t)raster_func192( (IDVPair *)data );
-    case 198:
-        raster_func198( (w3d_func198arg *)data );
-        return 1;
-    case 199:
-        raster_func199( (w3d_func199arg *)data );
-        return 1;
-    case 200:
-        raster_func200( (w3d_func198arg *)data );
-        return 1;
-    case 201:
-        raster_func201( (w3d_func199arg *)data );
-        return 1;
-    case 202:
-        raster_func202( (rstr_arg204 *)data );
-        return 1;
-    case 204:
-        raster_func204( (rstr_arg204 *)data );
-        return 1;
-    case 206:
-        raster_func206( (polysDat *)data );
-        return 1;
-    case 209:
-        raster_func209( (w3d_a209 *)data );
-        return 1;
-    case 213:
-        BeginScene();
-        return 1;
-    case 214:
-        EndScene();
-        return 1;
-    case 215:
-        //LockSurface();
-        return 1;
-    case 216:
-        //UnlockSurface();
-        return 1;
-    case 218:
-        raster_func218( (rstr_218_arg *)data );
-        return 1;
-    case 256:
-        return (size_t)display_func256( (windd_arg256 *)data );
-    case 257:
-        BeginFrame();
-        return 1;
-    case 258:
-        EndFrame();
-        return 1;
-    case 262:
-        display_func262( (rstr_262_arg *)data );
-        return 1;
-    case 263:
-        display_func263( (displ_arg263 *)data );
-        return 1;
-    case 266:
-        return (size_t)AllocTexture( (ResBitmap *)data );
-    case 267:
-        return 1;
-    case 268:
-        FreeTexture( (ResBitmap *)data );
-        return 1;
-    case 271:
-        display_func271( (IDVPair *)data );
-        return 1;
-    case 272:
-        display_func272( (IDVPair *)data );
-        return 1;
-    case 274:
-        display_func274( (const char **)data );
-        return 1;
-    case 320:
-        windd_func320( (IDVPair *)data );
-        return 1;
-    case 321:
-        windd_func321( (IDVPair *)data );
-        return 1;
-    case 322:
-        windd_func322( (windd_dlgBox *)data );
-        return 1;
-    case 323:
-        windd_func323( (const char **)data );
-        return 1;
-    case 324:
-        windd_func324( (wdd_func324arg *)data );
-        return 1;
-    case 325:
-        windd_func325( (wdd_func324arg *)data );
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_display::compatcall(method_id, data);
+    SDL_PixelFormat *fmt = engines.display___win3d->GetScreenFormat();
+#if SDL_VERSION_ATLEAST(2,0,5)
+    return SDL_CreateRGBSurfaceWithFormat(0, width, height, fmt->BitsPerPixel, fmt->format);
+#else
+    return SDL_CreateRGBSurface(0, width, height, fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask );
+#endif
 }
+
+SDL_Surface *NC_STACK_win3d::ConvertToScreenFormat(SDL_Surface *src)
+{
+#if (SDL_COMPILEDVERSION == SDL_VERSIONNUM(2, 0, 12))
+    /***
+     * Workaround for bug with convertation of surface with palette introduced
+     * in SDL2 2.0.12 and fixed soon but after release.
+     ***/
+    if (src->format->BytesPerPixel == 1)
+    {
+        SDL_Surface *tmp = CreateSurfaceScreenFormat(src->w, src->h);
+        SDL_BlendMode blend = SDL_BLENDMODE_NONE;
+        SDL_GetSurfaceBlendMode(src, &blend);
+        SDL_SetSurfaceBlendMode(src, SDL_BLENDMODE_NONE);
+        SDL_BlitSurface(src, NULL, tmp, NULL);
+        SDL_SetSurfaceBlendMode(src, blend);
+        return tmp;
+    }
+    else
+        return SDL_ConvertSurface(src, stack__win3d.screenSurface->format, 0);
+#else
+    return SDL_ConvertSurface(src, stack__win3d.screenSurface->format, 0);
+#endif
+}
+

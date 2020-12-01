@@ -124,13 +124,6 @@ struct flag_xyz2
     int z;
 };
 
-struct base_66_arg_struct //Parent info struct
-{
-    NC_STACK_base *parent;
-    TFEngine::TForm3D *parent_field_1c;
-    nlist *KIDS;
-};
-
 struct baseRender_msg
 {
     int frameTime;
@@ -165,7 +158,7 @@ struct base_64arg
 {
     int TimeStamp;
     int DTime;
-    struC5 *field_8;
+    InputState *field_8;
     int field_C;
     int field_10;
 };
@@ -188,8 +181,6 @@ class NC_STACK_base: public NC_STACK_nucleus
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t func5(IFFile **file);
     virtual size_t func6(IFFile **file);
     virtual size_t base_func64(base_64arg *arg);
@@ -206,7 +197,6 @@ public:
     virtual size_t base_func78(base_64arg *arg);
     virtual size_t base_func79(NC_STACK_base **arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_base() {
         ID = 0;
         flags = 0;
@@ -219,9 +209,9 @@ public:
         OBJT = NULL;
     };
     virtual ~NC_STACK_base() {};
-
-    virtual const char * getClassName() {
-        return "base.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -339,7 +329,7 @@ protected:
     int READ_KIDS(IFFile *mfile);
 
 public:
-    static NC_STACK_base *READ_BAS_FILE(const char *fname);
+    static NC_STACK_base *READ_BAS_FILE(const std::string &fname);
 
 
 public:

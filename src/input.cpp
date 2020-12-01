@@ -14,176 +14,126 @@ size_t NC_STACK_input::func0(IDVList &stak)
     if ( !NC_STACK_nucleus::func0(stak) )
         return 0;
 
-    for (int i = 0; i < 32; i++)
-    {
-        init_list(&stack__input.buttons_lists[i]);
-        init_list(&stack__input.sliders_lists[i]);
-    }
+    for (InputNodeList &lst : _buttons)
+        lst.clear();
+    
+    for (InputNodeList &lst : _sliders)
+        lst.clear();
+    
+    for (int16_t &k : _hotKeys)
+        k = Input::KC_NONE;
+
     return 1;
 }
 
 size_t NC_STACK_input::func1()
 {
-    __NC_STACK_input *inp = &stack__input;
+    if ( _timer )
+        delete_class_obj(_timer);
 
-    if ( inp->timer )
-        delete_class_obj(inp->timer);
+    if ( _wimp )
+        delete_class_obj(_wimp);
 
-    if ( inp->wimp )
-        delete_class_obj(inp->wimp);
+    if ( _keyboard )
+        delete_class_obj(_keyboard);
 
-    if ( inp->keyboard )
-        delete_class_obj(inp->keyboard);
-
-    for (int i = 0; i < 32; i++)
-    {
-        while( 1 )
-        {
-            inputkey_node *nod = (inputkey_node *)RemHead(&inp->buttons_lists[i]);
-
-            if (!nod)
-                break;
-
-            if (nod->driver_obj)
-                delete_class_obj(nod->driver_obj);
-
-            nc_FreeMem(nod);
-        }
-
-        while( 1 )
-        {
-            inputkey_node *nod = (inputkey_node *)RemHead(&inp->sliders_lists[i]);
-
-            if (!nod)
-                break;
-
-            if (nod->driver_obj)
-                delete_class_obj(nod->driver_obj);
-
-            nc_FreeMem(nod);
-        }
-    }
+    for (InputNodeList &lst : _buttons)
+        FreeKNodes(&lst);
+    
+    for (InputNodeList &lst : _sliders)
+        FreeKNodes(&lst);
+    
     return NC_STACK_nucleus::func1();
 }
 
-const char * input__parse__inputkey_node(const char *a1, nlist *lst)
+std::string NC_STACK_input::ParseInputNodeNext(const std::string &inputStr, InputNodeList *lst)
 {
-    inputkey_node *node = (inputkey_node *)AllocVec(sizeof(inputkey_node), 65537);
+    if (!lst)
+        return std::string();
+    
+    lst->emplace_back();
+    
+    InputNode &node = lst->back();
 
-    if ( node )
-        AddTail(lst, node);
+    std::string *out = &node.DriverName;
+    bool finishParse = false;
 
-    if ( node )
+    for( size_t i = 0; i < inputStr.size(); i++ )
     {
-        char *out = node->driver_name;
-        int v8 = 0;
-
-        while ( 1 )
+        switch(inputStr[i])
         {
-            char v10 = *a1;
+            case '\t':
+            case ' ':
+                if (finishParse)
+                    return inputStr.substr(i);
+                break;
+                
+            case '#':
+                if (finishParse)
+                    return inputStr.substr(i);
+                
+                node.Flags |= InputNode::FLAG_FSLIDE;
+                break;
+            
+            case '&':
+                if (finishParse)
+                    return inputStr.substr(i);;
 
-            if (!v10)
-                return NULL;
-            else if (v10 == '\t' || v10 == ' ')
-            {
-                if (v8)
-                    return a1;
-            }
-            else if (v10 == '#')
-            {
-                if (v8)
-                    return a1;
+                node.Flags |= InputNode::FLAG_AND;
+                break;
+                
+            case ':':
+                finishParse = true;
+                out = &node.KeyName;
+                break;
+            
+            case '|':
+                if (finishParse)
+                    return inputStr.substr(i);;
 
-                node->field_C |= 8;
-            }
-            else if (v10 == '&')
-            {
-                if (v8)
-                    return a1;
+                node.Flags |= InputNode::FLAG_OR;
+                break;
+            
+            case '~':
+                if (finishParse)
+                    return inputStr.substr(i);;
 
-                node->field_C |= 1;
-            }
-            else if (v10 == ':')
-            {
-                v8 = 1;
-                out = node->keyname;
-            }
-            else if (v10 == '|')
-            {
-                if (v8)
-                    return a1;
-
-                node->field_C |= 2;
-            }
-            else if (v10 == '~')
-            {
-                if (v8)
-                    return a1;
-
-                node->field_C |= 4;
-            }
-            else
-            {
-                *out = v10;
-                out++;
-            }
-
-            a1++;
+                node.Flags |= InputNode::FLAG_INV;
+                break;
+            
+            default:
+                (*out) += inputStr[i];
         }
     }
-    return NULL;
+    return std::string();
 }
 
-bool NC_STACK_input::input_func64(uint8_t type, uint32_t index, const std::string &val)
+bool NC_STACK_input::SetInputExpression(bool slider, uint32_t index, const std::string &keysStr)
 {
-    if (type != Input::ITYPE_BUTTON && type != Input::ITYPE_SLIDER)
-        return false;
-
-    nlist *v6;
-
-    if ( type == Input::ITYPE_BUTTON )
-        v6 = &stack__input.buttons_lists[index];
+    InputNodeList *pLst;
+    if ( slider )
+        pLst = &_sliders.at(index);
     else
-        v6 = &stack__input.sliders_lists[index];
+        pLst = &_buttons.at(index);
 
-    if ( !val.empty() )
+    if ( !keysStr.empty() )
     {
-        while ( 1 )
+        FreeKNodes(pLst);
+
+        std::string keysString = keysStr;
+
+        while (!keysString.empty())
+            keysString = ParseInputNodeNext(keysString, pLst);
+
+        for ( InputNode &node : *pLst )
         {
-            inputkey_node *node = (inputkey_node *)RemHead(v6);
-
-            if ( !node )
-                break;
-
-            if ( node->driver_obj )
-                delete_class_obj(node->driver_obj);
-
-            nc_FreeMem(node);
-        }
-
-        const char *v3 = val.c_str();
-
-        while (v3)
-            v3 = input__parse__inputkey_node(v3, v6);
-
-        for ( inputkey_node *node = (inputkey_node *)v6->head; node->next; node = (inputkey_node *)node->next )
-        {
-            if ( node->driver_name[0] && node->keyname[0] )
+            if ( !node.DriverName.empty() && !node.KeyName.empty() )
             {
-                node->driver_obj = Nucleus::CTFInit<NC_STACK_idev>(std::string(node->driver_name) + ".class");
-                if ( node->driver_obj )
-                {
-                    const char *v26 = node->keyname;
-
-                    node->keyType = node->driver_obj->idev_func67(&v26);
-
-                    if ( !node->keyType )
-                        ypa_log_out("input.class, WARN: Driver '%s' did not accept id '%s'.\n", node->driver_name, node->keyname);
-                }
+                node.DriverObj = Nucleus::CTFInit<NC_STACK_idev>(node.DriverName + ".class");
+                if ( node.DriverObj )
+                    node.IsSlider = node.DriverObj->BindKey(node.KeyName);
                 else
-                {
-                    ypa_log_out("input.class, WARN: Unknown driver '%s'.\n", node->driver_name);
-                }
+                    ypa_log_out("input.class, WARN: Unknown driver '%s'.\n", node.DriverName.c_str());
             }
         }
     }
@@ -195,29 +145,29 @@ bool NC_STACK_input::InitDriver(uint8_t type, const std::string &val)
     switch ( type )
     {
     case Input::ITYPE_WIMP:                                     // input.wimp
-        if ( stack__input.wimp )
-            delete_class_obj(stack__input.wimp);
+        if ( _wimp )
+            delete_class_obj(_wimp);
 
-        stack__input.wimp = Nucleus::CTFInit<NC_STACK_iwimp>(val + ".class");
-        if ( !stack__input.wimp )
+        _wimp = Nucleus::CTFInit<NC_STACK_iwimp>(val + ".class");
+        if ( !_wimp )
             return false;
         break;
 
     case Input::ITYPE_TIMER:                                   // input.timer
-        if ( stack__input.timer )
-            delete_class_obj(stack__input.timer);
+        if ( _timer )
+            delete_class_obj(_timer);
 
-        stack__input.timer = Nucleus::CTFInit<NC_STACK_itimer>(val + ".class");
-        if ( !stack__input.timer )
+        _timer = Nucleus::CTFInit<NC_STACK_itimer>(val + ".class");
+        if ( !_timer )
             return false;
         break;
 
     case Input::ITYPE_KBD:
-        if ( stack__input.keyboard )
-            delete_class_obj(stack__input.keyboard);
+        if ( _keyboard )
+            delete_class_obj(_keyboard);
 
-        stack__input.keyboard = Nucleus::CTFInit<NC_STACK_idev>(val + ".class");
-        if ( !stack__input.keyboard )
+        _keyboard = Nucleus::CTFInit<NC_STACK_idev>(val + ".class");
+        if ( !_keyboard )
             return false;
         break;
 
@@ -228,260 +178,338 @@ bool NC_STACK_input::InitDriver(uint8_t type, const std::string &val)
     return true;
 }
 
-void sub_41CC94(nlist *lst, inp_l65 *loc, int arg)
+void NC_STACK_input::UpdateList(InputNodeList *lst, bool *btn, float *slider)
 {
-    win_64arg warg64;
-
-    inputkey_node *node = (inputkey_node *)lst->head;
-    if ( lst->head->next )
+    bool btmp = true;
+    float ftmp = 0.0;
+    
+    if (btn)
+        btmp = *btn;
+    if (slider)
+        ftmp = *slider;
+    
+    for ( InputNode &node : *lst )
     {
-        while ( 1 )
+        if ( node.DriverObj )
         {
-            if ( node->driver_obj )
+            if (node.IsSlider || (node.Flags & InputNode::FLAG_FSLIDE) )
             {
-                warg64.field_0 = arg;
-
-                if (node->keyType == 1)
-                {
-                    if (node->field_C & 8)
-                    {
-                        node->driver_obj->idev_func65(&warg64);
-
-                        if ( node->field_C & 4 )
-                            loc->field_4 -= warg64.field_8;
-                        else
-                            loc->field_4 += warg64.field_8;
-                    }
-                    else
-                    {
-                        node->driver_obj->idev_func64(&warg64);
-
-                        int v9 = warg64.keyState;
-
-                        if ( node->field_C & 4 )
-                            v9 = warg64.keyState == 0;
-
-                        if ( node->field_C & 2 )
-                            loc->field_0 |= v9;
-                        else
-                            loc->field_0 &= v9;
-                    }
-                }
-                else if (node->keyType == 2)
-                {
-                    node->driver_obj->idev_func65(&warg64);
-
-                    if ( node->field_C & 4 )
-                        loc->field_4 -= warg64.field_8;
-                    else
-                        loc->field_4 += warg64.field_8;
-                }
+                if ( node.Flags & InputNode::FLAG_INV )
+                    ftmp -= node.DriverObj->GetSlider();
+                else
+                    ftmp += node.DriverObj->GetSlider();
             }
+            else
+            {
+                bool state = node.DriverObj->GetState();
 
-            node = (inputkey_node *)node->next;
-            if ( !node->next )
-                return;
+                if ( node.Flags & InputNode::FLAG_INV )
+                    state = !state;
+
+                if ( node.Flags & InputNode::FLAG_OR )
+                    btmp |= state;
+                else
+                    btmp &= state;
+            }
         }
     }
+    
+    if (btn)
+        *btn = btmp;
+    if (slider)
+        *slider = ftmp;
 }
 
-void NC_STACK_input::input_func65(struC5 *arg)
+void NC_STACK_input::QueryInput(InputState *arg)
 {
-    __NC_STACK_input *inp = &stack__input;
-    memset(arg, 0, sizeof(struC5));
+    arg->Clear();
 
-    if ( inp->timer )
-        arg->period = inp->timer->itimer_func64(NULL);
+    if ( _timer )
+        arg->Period = _timer->itimer_func64();
     else
-        arg->period = 20;
+        arg->Period = 20;
 
-    inp->field_4 += arg->period;
-
-    if ( inp->wimp &&
-            inp->wimp->HasFocus() )
+    if ( _wimp && _wimp->HasFocus() )
     {
-        if ( inp->keyboard )
+        if ( _keyboard )
+            _keyboard->QueryKeyboard(arg);
+        
+        arg->HotKeyID = CheckHotKey(arg->KbdLastHit);
+        
+        _wimp->CheckClick(&arg->ClickInf);
+
+        for (size_t i = 0; i < _buttons.size(); i++)
         {
-            winp_66arg v15;
-            memset(&v15, 0, sizeof(winp_66arg));
+            bool state = true;
+            UpdateList(&_buttons[i], &state);
 
-            inp->keyboard->idev_func66(&v15);
-
-            arg->downed_key_2 = v15.downed_key_2;
-            arg->downed_key = v15.downed_key;
-            arg->dword8 = v15.dword8;
-            arg->chr = v15.chr;
+            if (state)
+                arg->Buttons.Set(i);
         }
 
-        inp->wimp->CheckClick(&arg->ClickInf);
-
-        for (int i = 0; i < 32; i++)
+        for (size_t i = 0; i < _sliders.size(); i++)
         {
-            inp_l65 loc;
-            loc.field_0 = 1;
-            loc.field_4 = 0;
+            bool state = true;
+            float pos = 0.0;
+            UpdateList(&_sliders[i], &state, &pos);
 
-            sub_41CC94(&inp->buttons_lists[i], &loc, inp->field_4);
-
-            if (loc.field_0)
-                arg->but_flags |= 1 << i;
+            if (state)
+                arg->Sliders[i] = pos;
         }
-
-        for (int i = 0; i < 32; i++)
-        {
-            inp_l65 loc;
-            loc.field_0 = 1;
-            loc.field_4 = 0;
-
-            sub_41CC94(&inp->sliders_lists[i], &loc, inp->field_4);
-
-            if (loc.field_0)
-                arg->sliders_vars[i] = loc.field_4;
-        }
-
-        arg->field_9 = arg->sliders_vars[0] * 32.0;
-        arg->field_B = arg->sliders_vars[1] * 32.0;
     }
     else
     {
-        for (int i = 0; i < 32; i++)
+        for ( InputNodeList &lst : _sliders )
+            UpdateList(&lst);
+    }
+}
+
+bool NC_STACK_input::SetHotKey(uint16_t id, const std::string &keyname)
+{
+    if ( id < _hotKeys.size() )
+    {
+        int16_t kId = GetKeyIDByName(keyname);
+        if (kId == -1)
+            return false;
+        
+        if ( KeyMatrix.at(kId).IsSlider == false )
         {
-            inp_l65 loc;
-            sub_41CC94(&inp->sliders_lists[i], &loc, inp->field_4);
+            _hotKeys[ id ] = kId;
+            return true;
         }
     }
-}
-
-size_t NC_STACK_input::input_func66(input__func66__params *arg)
-{
-    __NC_STACK_input *inpt = &stack__input;
-
-    NC_STACK_nucleus *v7 = NULL;
-    if ( arg->field_0 == 1 )
-    {
-        v7 = inpt->wimp;
-    }
-    else if ( arg->field_0 == 2 )
-    {
-        v7 = inpt->timer;
-    }
-    else if ( arg->field_0 == 3 )
-    {
-        v7 = inpt->keyboard;
-    }
-
-    if ( v7 )
-    {
-        return v7->compatcall(arg->funcID, arg->vals);
-    }
-    else if ( arg->field_0 == 4 || arg->field_0 == 5 )
-    {
-        nlist *lst;
-
-        if ( arg->field_0 == 4 )
-            lst = &inpt->buttons_lists[arg->field_4];
-        else
-            lst = &inpt->sliders_lists[arg->field_4];
-
-        inputkey_node *node = (inputkey_node *)lst->head;
-        while (node->next)
-        {
-            if (node->driver_obj)
-            {
-                node->driver_obj->compatcall(arg->funcID, arg->vals);
-            }
-
-            node = (inputkey_node *)node->next;
-        }
-        return 0;
-    }
-    return 0;
-}
-
-
-int NC_STACK_input::keyb_setHotkey(winp_68arg *arg)
-{
-    return stack__input.keyboard->idev_func68(arg);
-}
-
-void NC_STACK_input::keyb_queryHotkey(idev_query_arg *arg)
-{
-    stack__input.keyboard->idev_func70(arg);
+    return false;
 }
 
 void NC_STACK_input::wimp_addClickNodeFront(ClickBox *box)
 {
-    stack__input.wimp->AddClickBoxFront(box);
+    _wimp->AddClickBoxFront(box);
 }
 
 void NC_STACK_input::wimp_addClickNodeBack(ClickBox *box)
 {
-    stack__input.wimp->AddClickBoxBack(box);
+    _wimp->AddClickBoxBack(box);
 }
 
 void NC_STACK_input::wimp_remClickNode(ClickBox *box)
 {
-    stack__input.wimp->RemoveClickBox(box);
+    _wimp->RemoveClickBox(box);
 }
 
 
-void NC_STACK_input::wimp_ForceFeedback(winp_71arg *ctrl)
+void NC_STACK_input::ForceFeedback(uint8_t state, uint8_t effID, float p1, float p2, float p3, float p4)
 {
-    stack__input.wimp->idev_func71(ctrl);
+    _wimp->ForceFeedBack(state, effID, p1, p2, p3, p4);
 }
 
 
-void NC_STACK_input::slider_reset(int sldr, int rtp)
+void NC_STACK_input::ResetSlider(int sldr)
 {
-    nlist *lst = &stack__input.sliders_lists[sldr];
-
-    inputkey_node *node = (inputkey_node *)lst->head;
-    while (node->next)
+    for( InputNode &node : _sliders.at(sldr) )
     {
-        if (node->driver_obj)
-            node->driver_obj->idev_func69(rtp);
+        if (node.DriverObj)
+            node.DriverObj->ResetSlider();
+    }
+}
 
-        node = (inputkey_node *)node->next;
+void NC_STACK_input::FreeKNodes(InputNodeList *lst)
+{
+    while (!lst->empty())
+    {
+        InputNode &nod = lst->front();
+
+        if (nod.DriverObj)
+            Nucleus::Delete(nod.DriverObj);
+
+        lst->pop_front();
     }
 }
 
 
-
-
-size_t NC_STACK_input::compatcall(int method_id, void *data)
+int16_t NC_STACK_input::GetKeyIDByName(const std::string &name)
 {
-    switch( method_id )
+    for( Input::KeyMapName &m : KeyNamesTable )
     {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 64:
-        return 1;//(size_t)input_func64( (input__func64__params *)data );
-    case 65:
-        input_func65( (struC5 *)data );
-        return 1;
-    case 66:
-        return (size_t)input_func66( (input__func66__params *)data );
-    default:
-        break;
+        if ( !StriCmp(m.Name, name) )
+            return m.ID;
     }
-    return NC_STACK_nucleus::compatcall(method_id, data);
+    
+    for( Input::KeyMapName &m : KeyAltNamesTable )
+    {
+        if ( !StriCmp(m.Name, name) )
+            return m.ID;
+    }
+    
+    return -1;
 }
 
-
-
-namespace Input
+int16_t NC_STACK_input::CheckHotKey(int16_t key)
 {
-std::array<KeyInfo, 256> KeysInfo;
+    if ( key == Input::KC_NONE )
+        return -1;
 
-int GetKeyIdByName(const std::string &name)
-{
-    for (uint32_t i = 0; i < KeysInfo.size(); i++)
+    for (size_t i = 0; i < _hotKeys.size(); i++)
     {
-        if (!StriCmp(KeysInfo[i]._name, name) )
+        if (_hotKeys[i] == key)
             return i;
     }
     return -1;
 }
+
+int16_t NC_STACK_input::GetHotKeyID(int16_t keycode)
+{
+    for ( size_t i = 0; i < _hotKeys.size(); i++ )
+    {
+        if ( _hotKeys[i] == keycode )
+            return i;
+    }
+    return -1;
 }
+
+int16_t NC_STACK_input::GetHotKey(uint16_t id)
+{
+    if (id < _hotKeys.size())
+        return _hotKeys[id];
+    
+    return Input::KC_NONE;
+}
+
+std::array<Input::KeyInfo, Input::KC_MAX> NC_STACK_input::KeyMatrix {{
+    {Input::KC_NONE, false},       {Input::KC_ESCAPE, false},         
+    {Input::KC_SPACE, false},      {Input::KC_UP, false},      
+    {Input::KC_DOWN, false},       {Input::KC_LEFT, false},      
+    {Input::KC_RIGHT, false},      {Input::KC_F1, false},              
+    {Input::KC_F2, false},         {Input::KC_F3, false},
+    {Input::KC_F4, false},         {Input::KC_F5, false},              
+    {Input::KC_F6, false},         {Input::KC_F7, false},      
+    {Input::KC_F8, false},         {Input::KC_F9, false},          
+    {Input::KC_F10, false},        {Input::KC_F11, false},            
+    {Input::KC_F12, false},        {Input::KC_BACKSPACE, false},
+    {Input::KC_TAB, false},        {Input::KC_CLEAR, false},        
+    {Input::KC_RETURN, false},     {Input::KC_CTRL, false},  
+    {Input::KC_SHIFT, false},      {Input::KC_ALT, false},           
+    {Input::KC_PAUSE, false},      {Input::KC_PGUP, false},
+    {Input::KC_PGDOWN, false},     {Input::KC_END, false},            
+    {Input::KC_HOME, false},       {Input::KC_SELECT, false},
+    {Input::KC_EXECUTE, false},    {Input::KC_SNAPSHOT, false},
+    {Input::KC_INSERT, false},     {Input::KC_DELETE, false},         
+    {Input::KC_HELP, false},       {Input::KC_1, false},
+    {Input::KC_2, false},          {Input::KC_3, false},                  
+    {Input::KC_4, false},          {Input::KC_5, false},          
+    {Input::KC_6, false},          {Input::KC_7, false},              
+    {Input::KC_8, false},          {Input::KC_9, false},                  
+    {Input::KC_0, false},          {Input::KC_A, false},
+    {Input::KC_B, false},          {Input::KC_C, false},                  
+    {Input::KC_D, false},          {Input::KC_E, false},          
+    {Input::KC_F, false},          {Input::KC_G, false},              
+    {Input::KC_H, false},          {Input::KC_I, false},                  
+    {Input::KC_J, false},          {Input::KC_K, false},
+    {Input::KC_L, false},          {Input::KC_M, false},                  
+    {Input::KC_N, false},          {Input::KC_O, false},          
+    {Input::KC_P, false},          {Input::KC_Q, false},              
+    {Input::KC_R, false},          {Input::KC_S, false},                  
+    {Input::KC_T, false},          {Input::KC_U, false},
+    {Input::KC_V, false},          {Input::KC_W, false},                  
+    {Input::KC_X, false},          {Input::KC_Y, false},          
+    {Input::KC_Z, false},          {Input::KC_NUM0, false},   
+    {Input::KC_NUM1, false},       {Input::KC_NUM2, false},       
+    {Input::KC_NUM3, false},       {Input::KC_NUM4, false},
+    {Input::KC_NUM5, false},       {Input::KC_NUM6, false},       
+    {Input::KC_NUM7, false},       {Input::KC_NUM8, false}, 
+    {Input::KC_NUM9, false},       {Input::KC_NUMMUL, false},
+    {Input::KC_NUMPLUS, false},    {Input::KC_NUMDOT, false},     
+    {Input::KC_NUMMINUS, false},   {Input::KC_NUMENTER, false},
+    {Input::KC_NUMDIV, false},     {Input::KC_EXTRA1, false},   
+    {Input::KC_EXTRA2, false},     {Input::KC_EXTRA3, false},
+    {Input::KC_EXTRA4, false},     {Input::KC_EXTRA5, false},   
+    {Input::KC_EXTRA6, false},     {Input::KC_EXTRA7, false},       
+    {Input::KC_EXTRA8, false},     {Input::KC_EXTRA9, false},
+    {Input::KC_EXTRA10, false},    {Input::KC_EXTRA11, false},      
+    {Input::KC_EXTRA12, false},    {Input::KC_EXTRA13, false},
+    {Input::KC_EXTRA14, false},    {Input::KC_EXTRA15, false},
+    {Input::KC_EXTRA16, false},    {Input::KC_EXTRA17, false},        
+    {Input::KC_EXTRA18, false},    {Input::KC_LMB, false},
+    {Input::KC_RMB, false},        {Input::KC_MMB, false},                
+    {Input::KC_MOUSEX, true},      {Input::KC_MOUSEY, true},     
+    {Input::KC_JOYB0, false},      {Input::KC_JOYB1, false},          
+    {Input::KC_JOYB2, false},      {Input::KC_JOYB3, false},              
+    {Input::KC_JOYB4, false},      {Input::KC_JOYB5, false},
+    {Input::KC_JOYB6, false},      {Input::KC_JOYB7, false},              
+    {Input::KC_JOYX, true},        {Input::KC_JOYY, true},      
+    {Input::KC_JOYTHROTTLE, true}, {Input::KC_JOYHATX, true},         
+    {Input::KC_JOYHATY, true},     {Input::KC_JOYRUDDER, true}
+}};
+
+std::array<Input::KeyMapName, Input::KC_MAX> NC_STACK_input::KeyNamesTable {{
+    {"nop", Input::KC_NONE},        {"esc", Input::KC_ESCAPE},         
+    {"space", Input::KC_SPACE},     {"up", Input::KC_UP},      
+    {"down", Input::KC_DOWN},       {"left", Input::KC_LEFT},      
+    {"right", Input::KC_RIGHT},     {"f1", Input::KC_F1},              
+    {"f2", Input::KC_F2},           {"f3", Input::KC_F3},
+    {"f4", Input::KC_F4},           {"f5", Input::KC_F5},              
+    {"f6", Input::KC_F6},           {"f7", Input::KC_F7},      
+    {"f8", Input::KC_F8},           {"f9", Input::KC_F9},          
+    {"f10", Input::KC_F10},         {"f11", Input::KC_F11},            
+    {"f12", Input::KC_F12},         {"bs", Input::KC_BACKSPACE},
+    {"tab", Input::KC_TAB},         {"clear", Input::KC_CLEAR},        
+    {"return", Input::KC_RETURN},   {"ctrl", Input::KC_CTRL},    
+    {"rshift", Input::KC_SHIFT},     {"alt", Input::KC_ALT},           
+    {"pause", Input::KC_PAUSE},     {"pageup", Input::KC_PGUP},
+    {"pagedown", Input::KC_PGDOWN}, {"end", Input::KC_END},            
+    {"home", Input::KC_HOME},       {"select", Input::KC_SELECT},
+    {"execute", Input::KC_EXECUTE}, {"snapshot", Input::KC_SNAPSHOT},
+    {"ins", Input::KC_INSERT},      {"del", Input::KC_DELETE},         
+    {"help", Input::KC_HELP},       {"1", Input::KC_1},
+    {"2", Input::KC_2},             {"3", Input::KC_3},                  
+    {"4", Input::KC_4},             {"5", Input::KC_5},          
+    {"6", Input::KC_6},             {"7", Input::KC_7},              
+    {"8", Input::KC_8},             {"9", Input::KC_9},                  
+    {"0", Input::KC_0},             {"a", Input::KC_A},
+    {"b", Input::KC_B},             {"c", Input::KC_C},                  
+    {"d", Input::KC_D},             {"e", Input::KC_E},          
+    {"f", Input::KC_F},             {"g", Input::KC_G},              
+    {"h", Input::KC_H},             {"i", Input::KC_I},                  
+    {"j", Input::KC_J},             {"k", Input::KC_K},
+    {"l", Input::KC_L},             {"m", Input::KC_M},                  
+    {"n", Input::KC_N},             {"o", Input::KC_O},          
+    {"p", Input::KC_P},             {"q", Input::KC_Q},              
+    {"r", Input::KC_R},             {"s", Input::KC_S},                  
+    {"t", Input::KC_T},             {"u", Input::KC_U},
+    {"v", Input::KC_V},             {"w", Input::KC_W},                  
+    {"x", Input::KC_X},             {"y", Input::KC_Y},          
+    {"z", Input::KC_Z},             {"num0", Input::KC_NUM0},   
+    {"num1", Input::KC_NUM1},       {"num2", Input::KC_NUM2},       
+    {"num3", Input::KC_NUM3},       {"num4", Input::KC_NUM4},
+    {"num5", Input::KC_NUM5},       {"num6", Input::KC_NUM6},       
+    {"num7", Input::KC_NUM7},       {"num8", Input::KC_NUM8}, 
+    {"num9", Input::KC_NUM9},       {"nummul", Input::KC_NUMMUL},
+    {"numplus", Input::KC_NUMPLUS}, {"numdot", Input::KC_NUMDOT},     
+    {"numminus", Input::KC_NUMMINUS},{"enter", Input::KC_NUMENTER},
+    {"numdiv", Input::KC_NUMDIV},   {"extra1", Input::KC_EXTRA1},   
+    {"extra2", Input::KC_EXTRA2},   {"extra3", Input::KC_EXTRA3},
+    {"extra4", Input::KC_EXTRA4},   {"extra5", Input::KC_EXTRA5},   
+    {"extra6", Input::KC_EXTRA6},   {"extra7", Input::KC_EXTRA7},       
+    {"extra8", Input::KC_EXTRA8},   {"extra9", Input::KC_EXTRA9},
+    {"extra10", Input::KC_EXTRA10}, {"extra11", Input::KC_EXTRA11},      
+    {"extra12", Input::KC_EXTRA12}, {"extra13", Input::KC_EXTRA13},
+    {"extra14", Input::KC_EXTRA14}, {"extra15", Input::KC_EXTRA15},
+    {"extra16", Input::KC_EXTRA16}, {"extra17", Input::KC_EXTRA17},        
+    {"extra18", Input::KC_EXTRA18}, {"lmb", Input::KC_LMB},
+    {"rmb", Input::KC_RMB},         {"mmb", Input::KC_MMB},                
+    {"mousex", Input::KC_MOUSEX},   {"mousey", Input::KC_MOUSEY},     
+    {"joyb0", Input::KC_JOYB0},     {"joyb1", Input::KC_JOYB1},          
+    {"joyb2", Input::KC_JOYB2},     {"joyb3", Input::KC_JOYB3},              
+    {"joyb4", Input::KC_JOYB4},     {"joyb5", Input::KC_JOYB5},
+    {"joyb6", Input::KC_JOYB6},     {"joyb7", Input::KC_JOYB7},              
+    {"joyx", Input::KC_JOYX},       {"joyy", Input::KC_JOYY},      
+    {"joythrottle", Input::KC_JOYTHROTTLE},{"joyhatx", Input::KC_JOYHATX},         
+    {"joyhaty", Input::KC_JOYHATY}, {"joyrudder", Input::KC_JOYRUDDER}
+}};
+
+std::vector<Input::KeyMapName> NC_STACK_input::KeyAltNamesTable ({
+    {"shift", Input::KC_SHIFT},    {"lshift", Input::KC_SHIFT},
+    {"lctrl", Input::KC_CTRL},      {"rctrl", Input::KC_CTRL},
+    {"lalt", Input::KC_ALT},        {"ralt", Input::KC_CTRL},
+});
+
+std::array<std::string, Input::KC_MAX> NC_STACK_input::KeyTitle;

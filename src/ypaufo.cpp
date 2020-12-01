@@ -21,20 +21,20 @@ size_t NC_STACK_ypaufo::func0(IDVList &stak)
 
     _ufoTogo = 200.0;
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case BACT_ATT_INPUTTING:
-                setBACT_inputting(val.value.i_data);
+                setBACT_inputting(val.Get<int32_t>());
                 break;
 
             case UFO_ATT_TOGO:
-                setUFO_togo(val.value.i_data);
+                setUFO_togo(val.Get<int32_t>());
                 break;
 
             default:
@@ -55,45 +55,20 @@ size_t NC_STACK_ypaufo::func2(IDVList &stak)
 {
     NC_STACK_ypabact::func2(stak);
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case BACT_ATT_INPUTTING:
-                setBACT_inputting(val.value.i_data);
+                setBACT_inputting(val.Get<int32_t>());
                 break;
 
             case UFO_ATT_TOGO:
-                setUFO_togo(val.value.i_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return 1;
-}
-
-size_t NC_STACK_ypaufo::func3(IDVList &stak)
-{
-    NC_STACK_ypabact::func3(stak);
-
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case UFO_ATT_TOGO:
-                *(int *)val.value.p_data = getUFO_togo();
+                setUFO_togo(val.Get<int32_t>());
                 break;
 
             default:
@@ -603,19 +578,19 @@ void NC_STACK_ypaufo::User_layer(update_msg *arg)
             }
         }
 
-        float v23 = -arg->inpt->sliders_vars[0] * _maxrot * v88;
+        float v23 = -arg->inpt->Sliders[0] * _maxrot * v88;
 
         if ( fabs(v23) > 0.0 )
             _rotation *= mat3x3::RotateY(v23);
 
-        float v25 = arg->inpt->sliders_vars[1] * _maxrot * v88;
+        float v25 = arg->inpt->Sliders[1] * _maxrot * v88;
 
         if ( fabs(v25) > 0.0 )
             _rotation = mat3x3::RotateX(v25) * _rotation;
 
-        if ( arg->inpt->sliders_vars[2] != 0.0 )
+        if ( arg->inpt->Sliders[2] != 0.0 )
         {
-            _ufoBoost = (arg->inpt->sliders_vars[2] * 4.0 + 1.0) * _mass * 9.80665;
+            _ufoBoost = (arg->inpt->Sliders[2] * 4.0 + 1.0) * _mass * 9.80665;
 
             float v85 = _pSector->height - _position.y;
             float v96 = _height_max_user - v85;
@@ -639,7 +614,7 @@ void NC_STACK_ypaufo::User_layer(update_msg *arg)
             }
         }
 
-        if ( arg->inpt->but_flags & 8 )
+        if ( arg->inpt->Buttons.Is(3) )
         {
             _thraction = 0;
 
@@ -666,7 +641,7 @@ void NC_STACK_ypaufo::User_layer(update_msg *arg)
             arg79.tgType = BACT_TGT_TYPE_UNIT;
         }
 
-        if ( arg->inpt->but_flags & 1 || arg->inpt->but_flags & 2 )
+        if ( arg->inpt->Buttons.IsAny({0, 1}) )
         {
             arg79.weapon = _weapon;
             arg79.direction = _rotation.AxisZ();
@@ -680,14 +655,14 @@ void NC_STACK_ypaufo::User_layer(update_msg *arg)
 
             arg79.start_point.y = _fire_pos.y;
             arg79.start_point.z = _fire_pos.z;
-            arg79.flags = (arg->inpt->but_flags & 2) != 0;
+            arg79.flags = (arg->inpt->Buttons.Is(1) ? 1 : 0);
 
             LaunchMissile(&arg79);
         }
 
         if ( _weapon == -1 )
         {
-            if ( arg->inpt->but_flags & 1 || arg->inpt->but_flags & 2 )
+            if ( arg->inpt->Buttons.IsAny({0, 1}) )
             {
                 if ( _thraction < _force )
                 {
@@ -702,7 +677,7 @@ void NC_STACK_ypaufo::User_layer(update_msg *arg)
             {
                 _thraction = 0;
 
-                if ( arg->inpt->sliders_vars[2] == 0.0 )
+                if ( arg->inpt->Sliders[2] == 0.0 )
                     _fly_dir_length *= 0.6;
 
                 if ( _fly_dir_length < 0.1 )
@@ -724,7 +699,7 @@ void NC_STACK_ypaufo::User_layer(update_msg *arg)
         {
             if ( _status_flg & BACT_STFLAG_FIRE )
             {
-                if ( arg->inpt->but_flags & 4 )
+                if ( arg->inpt->Buttons.Is(2) )
                 {
                     setState_msg arg78;
                     arg78.setFlags = 0;
@@ -735,7 +710,7 @@ void NC_STACK_ypaufo::User_layer(update_msg *arg)
                 }
             }
 
-            if ( arg->inpt->but_flags & 4 )
+            if ( arg->inpt->Buttons.Is(2) )
             {
                 if ( !(_status_flg & BACT_STFLAG_FIRE) )
                 {
@@ -989,37 +964,4 @@ void NC_STACK_ypaufo::setUFO_togo(int tog)
 int NC_STACK_ypaufo::getUFO_togo()
 {
     return _ufoTogo;
-}
-
-
-size_t NC_STACK_ypaufo::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        return func2( *(IDVList *)data );
-    case 3:
-        return func3( *(IDVList *)data );
-    case 70:
-        AI_layer3( (update_msg *)data );
-        return 1;
-    case 71:
-        User_layer( (update_msg *)data );
-        return 1;
-    case 74:
-        Move( (move_msg *)data );
-        return 1;
-    case 80:
-        return (size_t)SetPosition( (bact_arg80 *)data );
-    case 96:
-        Renew();
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_ypabact::compatcall(method_id, data);
 }

@@ -155,8 +155,11 @@ bool InputParser::IsScope(ScriptParser::Parser &parser, const std::string &word,
 {
     if ( !StriCmp(word, "new_input") )
     {
-        for( auto &k: _o.GameShell->keyConfig )
-            k.KeyCode = 0;
+        for( UserData::TInputConf &k: _o.GameShell->InputConfig )
+        {
+            k.PKeyCode = 0;
+            k.NKeyCode = 0;
+        }
         return true;
     }
     else if ( !StriCmp(word, "modify_input") )
@@ -226,29 +229,29 @@ int InputParser::Handle(ScriptParser::Parser &parser, const std::string &p1, con
             bool ok = false;
             int cfgIdex = std::stoi( Stok::Fast(p1.substr(13), "] \t=\n") );
 
-            if ( !INPe.getPInput()->input_func64(Input::ITYPE_SLIDER, cfgIdex, buf) )
+            if ( !INPe.getPInput()->SetInputExpression(true, cfgIdex, buf) )
             {
                 ypa_log_out("WARNING: cannot set slider %d with %s\n", cfgIdex, buf.c_str());
                 return ScriptParser::RESULT_BAD_DATA;
             }
 
 
-            int gsIndex = UserData::KeyIndexFromConfig(World::KEYC_TYPE_SLIDER, cfgIdex);
+            int gsIndex = UserData::InputIndexFromConfig(World::INPUT_BIND_TYPE_SLIDER, cfgIdex);
             if ( gsIndex == -1 )
             {
                 ypa_log_out("Unknown number in slider-declaration (%d)\n", cfgIdex);
                 return ScriptParser::RESULT_BAD_DATA;
             }
-            _o.GameShell->keyConfig[ gsIndex ].inp_type = World::KEYC_TYPE_SLIDER;
-            _o.GameShell->keyConfig[ gsIndex ].keyID = cfgIdex;
+            _o.GameShell->InputConfig[ gsIndex ].Type = World::INPUT_BIND_TYPE_SLIDER;
+            _o.GameShell->InputConfig[ gsIndex ].KeyID = cfgIdex;
 
             Stok stok(buf, " :\t\n");
             std::string tmp;
             if ( stok.GetNext(&tmp) && stok.GetNext(&tmp) ) // skip drivername before ':'
             {
-                _o.GameShell->keyConfig[ gsIndex ].slider_neg = Input::GetKeyIdByName(tmp);
+                _o.GameShell->InputConfig[ gsIndex ].NKeyCode = NC_STACK_input::GetKeyIDByName(tmp);
 
-                if ( _o.GameShell->keyConfig[ gsIndex ].slider_neg == -1 )
+                if ( _o.GameShell->InputConfig[ gsIndex ].NKeyCode == -1 )
                 {
                     ypa_log_out("Unknown keyword for slider %s\n", tmp.c_str());
                     return ScriptParser::RESULT_BAD_DATA;
@@ -256,9 +259,9 @@ int InputParser::Handle(ScriptParser::Parser &parser, const std::string &p1, con
 
                 if ( stok.GetNext(&tmp) && stok.GetNext(&tmp) ) // skip drivername before ':'
                 {
-                    _o.GameShell->keyConfig[ gsIndex ].KeyCode = Input::GetKeyIdByName(tmp);
+                    _o.GameShell->InputConfig[ gsIndex ].PKeyCode = NC_STACK_input::GetKeyIDByName(tmp);
 
-                    if ( _o.GameShell->keyConfig[ gsIndex ].KeyCode == -1 )
+                    if ( _o.GameShell->InputConfig[ gsIndex ].PKeyCode == -1 )
                     {
                         ypa_log_out("Unknown keyword for slider %s\n", tmp.c_str());
                         return ScriptParser::RESULT_BAD_DATA;
@@ -279,30 +282,30 @@ int InputParser::Handle(ScriptParser::Parser &parser, const std::string &p1, con
 
             int cfgIdex = std::stoi( Stok::Fast(p1.substr(13), "] \t=\n") );
 
-            if ( !INPe.getPInput()->input_func64(Input::ITYPE_BUTTON, cfgIdex, buf) )
+            if ( !INPe.getPInput()->SetInputExpression(false, cfgIdex, buf) )
             {
                 ypa_log_out("WARNING: cannot set button %d with %s\n", cfgIdex, buf.c_str());
                 return ScriptParser::RESULT_BAD_DATA;
             }
 
-            int gsIndex = UserData::KeyIndexFromConfig(World::KEYC_TYPE_BUTTON, cfgIdex);
+            int gsIndex = UserData::InputIndexFromConfig(World::INPUT_BIND_TYPE_BUTTON, cfgIdex);
             if ( gsIndex == -1 )
             {
                 ypa_log_out("Unknown number in button-declaration (%d)\n", cfgIdex);
                 return ScriptParser::RESULT_BAD_DATA;
             }
-            _o.GameShell->keyConfig[ gsIndex ].inp_type = World::KEYC_TYPE_BUTTON;
-            _o.GameShell->keyConfig[ gsIndex ].keyID = cfgIdex;
+            _o.GameShell->InputConfig[ gsIndex ].Type = World::INPUT_BIND_TYPE_BUTTON;
+            _o.GameShell->InputConfig[ gsIndex ].KeyID = cfgIdex;
 
             Stok stok(buf, " :\t\n");
             std::string tmp;
             if ( stok.GetNext(&tmp) && stok.GetNext(&tmp) ) // skip drivername before ':'
             {
-                _o.GameShell->keyConfig[ gsIndex ].KeyCode = Input::GetKeyIdByName(tmp);
+                _o.GameShell->InputConfig[ gsIndex ].PKeyCode = NC_STACK_input::GetKeyIDByName(tmp);
 
-                if ( _o.GameShell->keyConfig[ gsIndex ].KeyCode == -1 )
+                if ( _o.GameShell->InputConfig[ gsIndex ].PKeyCode == -1 )
                 {
-                    ypa_log_out("Unknown keyword for button %s\n", tmp);
+                    ypa_log_out("Unknown keyword for button %s\n", tmp.c_str());
                     return ScriptParser::RESULT_BAD_DATA;
                 }
                 ok = true;
@@ -320,34 +323,30 @@ int InputParser::Handle(ScriptParser::Parser &parser, const std::string &p1, con
 
             int cfgIdex = std::stoi( Stok::Fast(p1.substr(13), "] \t=\n") );
 
-            winp_68arg zz;
-            zz.keyname = buf;
-            zz.id = cfgIdex;
-
-            if ( !INPe.getPInput()->keyb_setHotkey(&zz) )
+            if ( !INPe.getPInput()->SetHotKey(cfgIdex, buf) )
             {
                 ypa_log_out("WARNING: cannot set hotkey %d with %s\n", cfgIdex, buf.c_str());
-                return ScriptParser::RESULT_BAD_DATA;
+                return ScriptParser::RESULT_OK;
             }
 
-            int gsIndex = UserData::KeyIndexFromConfig(World::KEYC_TYPE_HOTKEY, cfgIdex);
+            int gsIndex = UserData::InputIndexFromConfig(World::INPUT_BIND_TYPE_HOTKEY, cfgIdex);
             if ( gsIndex == -1 )
             {
                 ypa_log_out("Unknown number in hotkey-declaration (%d)\n", cfgIdex);
-                return ScriptParser::RESULT_BAD_DATA;
+                return ScriptParser::RESULT_OK;
             }
 
-            _o.GameShell->keyConfig[ gsIndex ].inp_type = World::KEYC_TYPE_HOTKEY;
-            _o.GameShell->keyConfig[ gsIndex ].keyID = cfgIdex;
+            _o.GameShell->InputConfig[ gsIndex ].Type = World::INPUT_BIND_TYPE_HOTKEY;
+            _o.GameShell->InputConfig[ gsIndex ].KeyID = cfgIdex;
 
             std::string tmp = Stok::Fast(buf, " :\t\n");
             if ( !tmp.empty() )
             {
-                _o.GameShell->keyConfig[ gsIndex ].KeyCode = Input::GetKeyIdByName(tmp);
-                if ( _o.GameShell->keyConfig[ gsIndex ].KeyCode == -1 )
+                _o.GameShell->InputConfig[ gsIndex ].PKeyCode = NC_STACK_input::GetKeyIDByName(tmp);
+                if ( _o.GameShell->InputConfig[ gsIndex ].PKeyCode == -1 )
                 {
                     ypa_log_out("Unknown keyword for hotkey: %s\n", tmp.c_str());
-                    return ScriptParser::RESULT_BAD_DATA;
+                    return ScriptParser::RESULT_OK;
                 }
                 ok = true;
             }
@@ -573,17 +572,17 @@ int VhclProtoParser::Handle(ScriptParser::Parser &parser, const std::string &p1,
         {
             _vhcl->model_id = BACT_TYPES_FLYER;
 
-            _vhcl->initParams.Add(NC_STACK_ypaflyer::FLY_ATT_TYPE, 3);
+            _vhcl->initParams.Add(NC_STACK_ypaflyer::FLY_ATT_TYPE, (int32_t)3);
         }
         else if ( !StriCmp(p2, "glider") )
         {
             _vhcl->model_id = BACT_TYPES_FLYER;
-            _vhcl->initParams.Add(NC_STACK_ypaflyer::FLY_ATT_TYPE, 2);
+            _vhcl->initParams.Add(NC_STACK_ypaflyer::FLY_ATT_TYPE, (int32_t)2);
         }
         else if ( !StriCmp(p2, "zeppelin") )
         {
             _vhcl->model_id = BACT_TYPES_FLYER;
-            _vhcl->initParams.Add(NC_STACK_ypaflyer::FLY_ATT_TYPE, 0);
+            _vhcl->initParams.Add(NC_STACK_ypaflyer::FLY_ATT_TYPE, (int32_t)0);
         }
         else
         {
@@ -808,15 +807,15 @@ int VhclProtoParser::Handle(ScriptParser::Parser &parser, const std::string &p1,
     }
     else if ( !StriCmp(p1, "gun_side_angle") )
     {
-        _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_SIDEANGLE, (int)std::stol(p2, NULL, 0));
+        _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_SIDEANGLE, (int32_t)std::stol(p2, NULL, 0));
     }
     else if ( !StriCmp(p1, "gun_up_angle") )
     {
-        _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_UPANGLE, (int)std::stol(p2, NULL, 0));
+        _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_UPANGLE, (int32_t)std::stol(p2, NULL, 0));
     }
     else if ( !StriCmp(p1, "gun_down_angle") )
     {
-        _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_DOWNANGLE, (int)std::stol(p2, NULL, 0));
+        _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_DOWNANGLE, (int32_t)std::stol(p2, NULL, 0));
     }
     else if ( !StriCmp(p1, "gun_type") )
     {
@@ -835,63 +834,48 @@ int VhclProtoParser::Handle(ScriptParser::Parser &parser, const std::string &p1,
         }
 
         if ( gun_type )
-            _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_FIRETYPE, gun_type);
+            _vhcl->initParams.Add(NC_STACK_ypagun::GUN_ATT_FIRETYPE, (int32_t)gun_type);
     }
     else if ( !StriCmp(p1, "kamikaze") )
     {
-        _vhcl->initParams.Add(NC_STACK_ypacar::CAR_ATT_KAMIKAZE, 1);
+        _vhcl->initParams.Add(NC_STACK_ypacar::CAR_ATT_KAMIKAZE, (int32_t)1);
 
-        _vhcl->initParams.Add(NC_STACK_ypacar::CAR_ATT_BLAST, (int)std::stol(p2, NULL, 0));
+        _vhcl->initParams.Add(NC_STACK_ypacar::CAR_ATT_BLAST, (int32_t)std::stol(p2, NULL, 0));
     }
     else if ( !StriCmp(p1, "wireframe") )
     {
         if ( _vhcl->wireframe )
             Nucleus::Delete( _vhcl->wireframe );
-
-        IDVList init_vals;
-        init_vals.Add( NC_STACK_rsrc::RSRC_ATT_NAME, p2.c_str());
-
-        _vhcl->wireframe = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+        
+        _vhcl->wireframe = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string(p2)}} );
     }
     else if ( !StriCmp(p1, "hud_wireframe") )
     {
         if ( _vhcl->hud_wireframe )
             Nucleus::Delete(_vhcl->hud_wireframe);
 
-        IDVList init_vals;
-        init_vals.Add( NC_STACK_rsrc::RSRC_ATT_NAME, p2.c_str());
-
-        _vhcl->hud_wireframe = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+        _vhcl->hud_wireframe = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string(p2)}} );
     }
     else if ( !StriCmp(p1, "mg_wireframe") )
     {
         if ( _vhcl->mg_wireframe )
             Nucleus::Delete(_vhcl->mg_wireframe);
 
-        IDVList init_vals;
-        init_vals.Add( NC_STACK_rsrc::RSRC_ATT_NAME, p2.c_str());
-
-        _vhcl->mg_wireframe = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+        _vhcl->mg_wireframe = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string(p2)}} );
     }
     else if ( !StriCmp(p1, "wpn_wireframe_1") )
     {
         if ( _vhcl->wpn_wireframe_1 )
             Nucleus::Delete(_vhcl->wpn_wireframe_1);
 
-        IDVList init_vals;
-        init_vals.Add( NC_STACK_rsrc::RSRC_ATT_NAME, p2.c_str());
-
-        _vhcl->wpn_wireframe_1 = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+        _vhcl->wpn_wireframe_1 = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string(p2)}} );
     }
     else if ( !StriCmp(p1, "wpn_wireframe_2") )
     {
         if ( _vhcl->wpn_wireframe_2 )
             Nucleus::Delete(_vhcl->wpn_wireframe_2);
 
-        IDVList init_vals;
-        init_vals.Add( NC_STACK_rsrc::RSRC_ATT_NAME, p2.c_str());
-
-        _vhcl->wpn_wireframe_2 = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+        _vhcl->wpn_wireframe_2 = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string(p2)}} );
     }
     else if ( !StriCmp(p1, "vo_type") )
     {
@@ -1026,11 +1010,11 @@ int VhclProtoParser::Handle(ScriptParser::Parser &parser, const std::string &p1,
     }
     else if ( !StriCmp(p1, "robo_does_twist") )
     {
-        _vhcl->initParams.Add(NC_STACK_yparobo::ROBO_ATT_WAIT_ROTATE, 1);
+        _vhcl->initParams.Add(NC_STACK_yparobo::ROBO_ATT_WAIT_ROTATE, (int32_t)1);
     }
     else if ( !StriCmp(p1, "robo_does_flux") )
     {
-        _vhcl->initParams.Add(NC_STACK_yparobo::ROBO_ATT_WAIT_SWAY, 1);
+        _vhcl->initParams.Add(NC_STACK_yparobo::ROBO_ATT_WAIT_SWAY, (int32_t)1);
     }
     else
         return ParseSndFX(p1, p2);
@@ -1429,10 +1413,7 @@ int WeaponProtoParser::Handle(ScriptParser::Parser &parser, const std::string &p
         if ( _wpn->wireframe )
             Nucleus::Delete(_wpn->wireframe);
 
-        IDVList init_vals;
-        init_vals.Add( NC_STACK_rsrc::RSRC_ATT_NAME, p2.c_str() );
-
-        _wpn->wireframe = Nucleus::CInit<NC_STACK_sklt>(init_vals);
+        _wpn->wireframe = Nucleus::CInit<NC_STACK_sklt>( {{NC_STACK_rsrc::RSRC_ATT_NAME, std::string(p2)}} );
     }
     else if ( !StriCmp(p1, "dest_fx") )
     {
@@ -1479,11 +1460,11 @@ bool BuildProtoParser::IsScope(ScriptParser::Parser &parser, const std::string &
     {
         int bldId = std::stol(opt, NULL, 0);
 
+        _o.BuildProtos[bldId] = TBuildingProto();
         _bld = &_o.BuildProtos[bldId];
-        _bld->clear();
-        _bld->energy = 50000;
-        _bld->type_icon = 65;
-        _bld->sndfx.volume = 120;
+        _bld->Energy = 50000;
+        _bld->TypeIcon = 65;
+        _bld->SndFX.volume = 120;
         return true;
     }
     else if (!StriCmp(word, "modify_building"))
@@ -1508,98 +1489,98 @@ int BuildProtoParser::Handle(ScriptParser::Parser &parser, const std::string &p1
     {
         if ( !StriCmp(p2, "building") )
         {
-            _bld->model_id = 0;
+            _bld->ModelID = 0;
         }
         else if ( !StriCmp(p2, "kraftwerk") )
         {
-            _bld->model_id = 1;
+            _bld->ModelID = 1;
         }
         else if ( !StriCmp(p2, "radar") )
         {
-            _bld->model_id = 2;
+            _bld->ModelID = 2;
         }
         else if ( !StriCmp(p2, "defcenter") )
         {
-            _bld->model_id = 3;
+            _bld->ModelID = 3;
         }
         else
             return ScriptParser::RESULT_BAD_DATA;
     }
     else if ( !StriCmp(p1, "enable") )
     {
-        _bld->enable_mask |= 1 << std::stol(p2, NULL, 0);
+        _bld->EnableMask |= 1 << std::stol(p2, NULL, 0);
     }
     else if ( !StriCmp(p1, "disable") )
     {
-        _bld->enable_mask &= ~(1 << std::stol(p2, NULL, 0));
+        _bld->EnableMask &= ~(1 << std::stol(p2, NULL, 0));
     }
     else if ( !StriCmp(p1, "name") )
     {
-        _bld->name = p2;
-        std::replace(_bld->name.begin(), _bld->name.end(), '_', ' ');
+        _bld->Name = p2;
+        std::replace(_bld->Name.begin(), _bld->Name.end(), '_', ' ');
     }
     else if ( !StriCmp(p1, "power") )
     {
-        _bld->power = std::stol(p2, NULL, 0);
+        _bld->Power = std::stol(p2, NULL, 0);
     }
     else if ( !StriCmp(p1, "energy") )
     {
-        _bld->energy = std::stol(p2, NULL, 0);
+        _bld->Energy = std::stol(p2, NULL, 0);
     }
     else if ( !StriCmp(p1, "sec_type") )
     {
-        _bld->sec_type = std::stol(p2, NULL, 0);
+        _bld->SecType = std::stol(p2, NULL, 0);
     }
     else if ( !StriCmp(p1, "type_icon") )
     {
-        _bld->type_icon = p2[0];
+        _bld->TypeIcon = p2[0];
     }
     else if ( !StriCmp(p1, "snd_normal_sample") )
     {
-        _bld->sndfx.sample_name = p2;
+        _bld->SndFX.sample_name = p2;
     }
     else if ( !StriCmp(p1, "snd_normal_volume") )
     {
-        _bld->sndfx.volume = std::stol(p2, NULL, 0);
+        _bld->SndFX.volume = std::stol(p2, NULL, 0);
     }
     else if ( !StriCmp(p1, "snd_normal_pitch") )
     {
-        _bld->sndfx.pitch = std::stol(p2, NULL, 0);
+        _bld->SndFX.pitch = std::stol(p2, NULL, 0);
     }
     else if ( !StriCmp(p1, "sbact_act") )
     {
-        _sbact = std::stol(p2, NULL, 0);
+        _gunID = std::stol(p2, NULL, 0);
     }
     else
     {
-        buildSbact *v19 = &_bld->sbacts[_sbact];
+        TBuildingProto::TGun &pGun = _bld->Guns.at(_gunID);
         if ( !StriCmp(p1, "sbact_vehicle") )
         {
-            v19->sbact_vehicle = std::stol(p2, NULL, 0);
+            pGun.VhclID = std::stol(p2, NULL, 0);
         }
         else if ( !StriCmp(p1, "sbact_pos_x") )
         {
-            v19->sbact_pos_x = std::stof(p2, 0);
+            pGun.Pos.x = std::stof(p2, 0);
         }
         else if ( !StriCmp(p1, "sbact_pos_y") )
         {
-            v19->sbact_pos_y = std::stof(p2, 0);
+            pGun.Pos.y = std::stof(p2, 0);
         }
         else if ( !StriCmp(p1, "sbact_pos_z") )
         {
-            v19->sbact_pos_z = std::stof(p2, 0);
+            pGun.Pos.z = std::stof(p2, 0);
         }
         else if ( !StriCmp(p1, "sbact_dir_x") )
         {
-            v19->sbact_dir_x = std::stof(p2, 0);
+            pGun.Dir.x = std::stof(p2, 0);
         }
         else if ( !StriCmp(p1, "sbact_dir_y") )
         {
-            v19->sbact_dir_y = std::stof(p2, 0);
+            pGun.Dir.y = std::stof(p2, 0);
         }
         else if ( !StriCmp(p1, "sbact_dir_z") )
         {
-            v19->sbact_dir_z = std::stof(p2, 0);
+            pGun.Dir.z = std::stof(p2, 0);
         }
         else
             return ScriptParser::RESULT_UNKNOWN;
@@ -2011,7 +1992,7 @@ bool SuperItemParser::IsScope(ScriptParser::Parser &parser, const std::string &w
     _o.superbomb_wall_vproto = 0;
     _o.superbomb_center_vproto = 0;
     return true;
-};
+}
 
 int SuperItemParser::Handle(ScriptParser::Parser &parser, const std::string &p1, const std::string &p2)
 {
@@ -2847,7 +2828,7 @@ int LevelGemParser::Handle(ScriptParser::Parser &parser, const std::string &p1, 
     }
     else if ( !StriCmp(p1, "type") )
     {
-        _g->Type =std::stol(p2, NULL, 0);
+        _g->Type = std::stol(p2, NULL, 0);
     }
     else if ( !StriCmp(p1, "script") )
     {
@@ -2944,7 +2925,7 @@ bool LevelEnableParser::IsScope(ScriptParser::Parser &parser, const std::string 
         _o.VhclProtos[i].disable_enable_bitmask &= ~(1 << _fraction);
 
     for (int i = 0; i < 128; i++)
-        _o.BuildProtos[i].enable_mask &= ~(1 << _fraction);
+        _o.BuildProtos[i].EnableMask &= ~(1 << _fraction);
 
     return true;
 }
@@ -2966,7 +2947,7 @@ int LevelEnableParser::Handle(ScriptParser::Parser &parser, const std::string &p
     {
         int id = std::stol(p2, NULL, 0);
         if ( id >= 0 && id < 128 )
-            _o.BuildProtos[id].enable_mask |= (1 << _fraction);
+            _o.BuildProtos[id].EnableMask |= (1 << _fraction);
         else
             return ScriptParser::RESULT_BAD_DATA;
     }
@@ -3457,7 +3438,7 @@ bool LevelStatusParser::IsScope(ScriptParser::Parser &parser, const std::string 
 
     _levelId = std::stoi(opt);
     return true;
-};
+}
 
 int LevelStatusParser::Handle(ScriptParser::Parser &parser, const std::string &p1, const std::string &p2)
 {
@@ -3486,7 +3467,7 @@ bool BuddyParser::IsScope(ScriptParser::Parser &parser, const std::string &word,
         return true;
     }
     return false;
-};
+}
 
 int BuddyParser::Handle(ScriptParser::Parser &parser, const std::string &p1, const std::string &p2)
 {

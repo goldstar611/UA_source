@@ -1,6 +1,7 @@
 #include <inttypes.h>
 #include <string.h>
 #include <math.h>
+#include <string>
 #include "includes.h"
 #include "yw.h"
 
@@ -16,12 +17,12 @@
 
 const Nucleus::ClassDescr NC_STACK_ypaworld::description("ypaworld.class", &newinstance);
 
-key_value_stru ypaworld_keys[4] =
+Common::Ini::KeyList ypaworld_keys
 {
-    {"netgame.exclusivegem", KEY_TYPE_BOOL, 1},
-    {"net.waitstart", KEY_TYPE_DIGIT, 150000},
-    {"net.kickoff", KEY_TYPE_DIGIT, 20000},
-    {"game.debug", KEY_TYPE_BOOL, 0}
+    Common::Ini::Key("netgame.exclusivegem", Common::Ini::KT_BOOL, true),
+    Common::Ini::Key("net.waitstart",        Common::Ini::KT_DIGIT, (int32_t)150000),
+    Common::Ini::Key("net.kickoff",          Common::Ini::KT_DIGIT, (int32_t)20000),
+    Common::Ini::Key("game.debug",           Common::Ini::KT_BOOL)
 };
 
 int word_5A50C2;
@@ -48,22 +49,24 @@ uint32_t bact_id = 0x10000;
 int dword_5A7A80;
 
 NC_STACK_ypaworld::NC_STACK_ypaworld()
-: _history(4096)
+: _unitsList(this, NC_STACK_ypabact::GetKidRefNode, World::BLIST_UNITS)
+, _deadCacheList(this, NC_STACK_ypabact::GetKidRefNode, World::BLIST_CACHE)
+, _history(4096)
 {
     GameShell = NULL;
     b64_parms = NULL;
-    sectors_maxX = 0;
-    sectors_maxY = 0;
-    sectors_maxX2 = 0;
-    sectors_maxY2 = 0;
-    cells = NULL;
+    _mapAbsMaxX = 0;
+    _mapAbsMaxY = 0;
+    _mapWidth = 0;
+    _mapHeight = 0;
+    _cells = NULL;
 
     map_Width_meters = 0.0;
     map_Height_meters = 0.0;
     field_30 = NULL;
-    field_34 = NULL;
-    field_38 = 0;
-    field_3c = 0;
+    _powerStations = NULL;
+    _powerStationsCount = 0;
+    _lastUpdatedPowerStationID = 0;
     set_number = 0;
     additionalSet = NULL;
 //nlist bact_list;
@@ -117,7 +120,7 @@ NC_STACK_ypaworld::NC_STACK_ypaworld()
     timeStamp = 0;
     field_1618 = 0;
     field_161c = 0;
-    buildDate = NULL;
+    buildDate = "";
     field_1624 = 0;
     field_1628 = 0;
     field_162A = 0;
@@ -133,9 +136,9 @@ NC_STACK_ypaworld::NC_STACK_ypaworld()
     draggingItem = NULL;
 //shortPoint field_17b8;
     draggingLock = 0;
-    field_17c0 = 0; // Grab mouse for unit steer-turn
+    _mouseGrabbed = 0; // Grab mouse for unit steer-turn
     field_17c4 = 0;
-    field_17c8 = 0;
+    field_17c8 = -1;
     tooltips = NULL;
 //rgbiColor iniColors[70];
     field_1a00 = 0;
@@ -195,7 +198,7 @@ NC_STACK_ypaworld::NC_STACK_ypaworld()
     field_1b74 = 0;
     UserRobo = NULL;
     UserUnit = NULL;
-    field_1b88 = NULL;
+    _UserRoboKidsList = NULL;
 
     memset(sectors_count_by_owner, 0, sizeof(sectors_count_by_owner));
 
@@ -206,14 +209,14 @@ NC_STACK_ypaworld::NC_STACK_ypaworld()
         field_1bec[i] = 0.0;
     }
 
-    memset(field_1c0c, 0, sizeof(field_1c0c));
+    memset(_cmdrsRemap, 0, sizeof(_cmdrsRemap));
 
-    field_240c = 0;
-    field_2410 = 0;
-    field_2414 = 0;
-    field_2418 = 0;
+    _activeCmdrID = 0;
+    _activeCmdrRemapIndex = 0;
+    _cmdrsCount = 0;
+    _kidsCount = 0;
     field_241c = 0;
-    field_2420 = NULL;
+    _lastMsgSender = NULL;
     field_2424 = 0;
     do_screenshooting = 0;
     screenshot_seq_id = 0; //Screenshoting sequence id
@@ -343,7 +346,7 @@ NC_STACK_ypaworld::NC_STACK_ypaworld()
     unit_limit_1 = 0;
     unit_limit_arg_1 = 0;
     unit_limit_type_1 = 0;
-    field_826F = 0;
+    field_826F = Input::KC_NONE;
     TOD_ID = 0;
     beam_energy_start = 0;
     beam_energy_add = 0;
@@ -530,14 +533,14 @@ void yw_setInitScriptLoc(NC_STACK_ypaworld *yw)
 
     if (fil)
     {
-        char buf[512];
-        if ( fil->gets(buf, 512) )
+        std::string line;
+        if ( fil->ReadLine(&line) )
         {
-            char *en = strpbrk(buf, "\n;");
-            if (en)
-                *en = 0;
+            size_t en = line.find_first_of("\n;");
+            if (en != std::string::npos)
+                line.erase(en);
 
-            yw->initScriptLoc = buf;
+            yw->initScriptLoc = line;
             ok = true;
         }
 
@@ -609,36 +612,32 @@ size_t NC_STACK_ypaworld::func0(IDVList &stak)
     screen_width = GFXEngine::GFXe.getScreenW();
     screen_height = GFXEngine::GFXe.getScreenH();
 
-    init_list(&bact_list);
+    _unitsList.clear();
     field_17a0.clear();
-    init_list(&dead_cache);
+    _deadCacheList.clear();
 
 
     fxnumber = 16;
-    field_1368 = stak.Get(YW_ATT_VISSECTORS, YW_RENDER_SECTORS_DEF);
-    field_15e4 = stak.Get(YW_ATT_NORMVISLIMIT, 1400);
-    field_15e8 = stak.Get(YW_ATT_FADELENGTH, 600);
-    field_15ec = stak.Get(YW_ATT_SKYVISLIMIT, 4200);
-    field_15f0 = stak.Get(YW_ATT_SKYFADELENGTH, 1100);
-    sectors_maxX = stak.Get(YW_ATT_MAPMAX_X, 64);
-    sectors_maxY = stak.Get(YW_ATT_MAPMAX_Y, 64);
-    sectors_maxX2 = sectors_maxX;
-    sectors_maxY2 = sectors_maxY;
-    field_15f4 = stak.Get(YW_ATT_SKYHEIGHT, -550);
-    field_15f8 = stak.Get(YW_ATT_SKYRENDER, 1);
-    field_15fc = stak.Get(YW_ATT_DOENERGYRECALC, 1);
+    field_1368 = stak.Get<int32_t>(YW_ATT_VISSECTORS, YW_RENDER_SECTORS_DEF);
+    field_15e4 = stak.Get<int32_t>(YW_ATT_NORMVISLIMIT, 1400);
+    field_15e8 = stak.Get<int32_t>(YW_ATT_FADELENGTH, 600);
+    field_15ec = stak.Get<int32_t>(YW_ATT_SKYVISLIMIT, 4200);
+    field_15f0 = stak.Get<int32_t>(YW_ATT_SKYFADELENGTH, 1100);
+    _mapAbsMaxX = stak.Get<int32_t>(YW_ATT_MAPMAX_X, 64);
+    _mapAbsMaxY = stak.Get<int32_t>(YW_ATT_MAPMAX_Y, 64);
+    _mapWidth = _mapAbsMaxX;
+    _mapHeight = _mapAbsMaxY;
+    field_15f4 = stak.Get<int32_t>(YW_ATT_SKYHEIGHT, -550);
+    field_15f8 = stak.Get<int32_t>(YW_ATT_SKYRENDER, 1);
+    field_15fc = stak.Get<int32_t>(YW_ATT_DOENERGYRECALC, 1);
 
-    char *v4 = (char *)stak.GetPointer(YW_ATT_BUILD_DATE, NULL);
-    buildDate = v4;
-    if ( v4 )
+    buildDate = stak.Get<std::string>(YW_ATT_BUILD_DATE, "");
+    
+    for (char &chr : buildDate)
     {
-        for (char *pchr = v4; *pchr; pchr++)
-        {
-            char chr = toupper(*pchr);
-            if ( chr < ' ' || chr > 'Z' )
-                chr = '*';
-            *pchr = chr;
-        }
+        chr = toupper(chr);
+        if ( chr < ' ' || chr > 'Z' )
+            chr = '*';
     }
 
 
@@ -659,9 +658,9 @@ size_t NC_STACK_ypaworld::func0(IDVList &stak)
         }
     }
 
-    cells = new cellArea[sectors_maxX * sectors_maxY];
+    _cells = new cellArea[_mapAbsMaxX * _mapAbsMaxY];
 
-    if ( !cells )
+    if ( !_cells )
     {
         ypa_log_out("yw_main.c/OM_NEW: alloc of cell area failed!\n");
         func1();
@@ -714,197 +713,6 @@ size_t NC_STACK_ypaworld::func1()
     return NC_STACK_nucleus::func1();
 }
 
-size_t NC_STACK_ypaworld::func2(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case YW_ATT_NORMVISLIMIT:
-                setYW_normVisLimit(val.value.i_data);
-                break;
-
-            case YW_ATT_FADELENGTH:
-                setYW_fadeLength(val.value.i_data);
-                break;
-
-            case YW_ATT_SKYVISLIMIT:
-                setYW_skyVisLimit(val.value.i_data);
-                break;
-
-            case YW_ATT_SKYFADELENGTH:
-                setYW_skyFadeLength(val.value.i_data);
-                break;
-
-            case YW_ATT_SKYHEIGHT:
-                setYW_skyHeight(val.value.i_data);
-                break;
-
-            case YW_ATT_SKYRENDER:
-                setYW_skyRender(val.value.i_data);
-                break;
-
-            case YW_ATT_DOENERGYRECALC:
-                setYW_doEnergyRecalc(val.value.i_data);
-                break;
-
-            case YW_ATT_VISSECTORS:
-                setYW_visSectors(val.value.i_data);
-                break;
-
-            case YW_ATT_USERHOST:
-                setYW_userHostStation((NC_STACK_ypabact *)val.value.p_data);
-                break;
-
-            case YW_ATT_USERVEHICLE:
-                setYW_userVehicle((NC_STACK_ypabact *)val.value.p_data);
-                break;
-
-            case YW_ATT_SCREEN_W:
-                setYW_screenW(val.value.i_data);
-                break;
-
-            case YW_ATT_SCREEN_H:
-                setYW_screenH(val.value.i_data);
-                break;
-
-            case YW_ATT_DONT_RENDER:
-                setYW_dontRender(val.value.i_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_nucleus::func2(stak);
-}
-
-size_t NC_STACK_ypaworld::func3(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case YW_ATT_MAPMAX_X:
-                *(int *)val.value.p_data = getYW_mapMaxX();
-                break;
-
-            case YW_ATT_MAPMAX_Y:
-                *(int *)val.value.p_data = getYW_mapMaxY();
-                break;
-
-            case YW_ATT_MAPSIZE_X:
-                *(int *)val.value.p_data = getYW_mapSizeX();
-                break;
-
-            case YW_ATT_MAPSIZE_Y:
-                *(int *)val.value.p_data = getYW_mapSizeY();
-                break;
-
-            //            case YW_ATT_SECTORSIZE_X:
-            //                *(int *)val.value = yw->field_20;
-            //                break;
-            //
-            //            case YW_ATT_SECTORSIZE_Y:
-            //                *(int *)val.value = yw->field_24;
-            //                break;
-
-            case YW_ATT_NORMVISLIMIT:
-                *(int *)val.value.p_data = getYW_normVisLimit();
-                break;
-
-            case YW_ATT_FADELENGTH:
-                *(int *)val.value.p_data = getYW_fadeLength();
-                break;
-
-            case YW_ATT_SKYHEIGHT:
-                *(int *)val.value.p_data = getYW_skyHeight();
-                break;
-
-            case YW_ATT_SKYRENDER:
-                *(int *)val.value.p_data = getYW_skyRender();
-                break;
-
-            case YW_ATT_DOENERGYRECALC:
-                *(int *)val.value.p_data = getYW_doEnergyRecalc();
-                break;
-
-            case YW_ATT_VISSECTORS:
-                *(int *)val.value.p_data = getYW_visSectors();
-                break;
-
-            case YW_ATT_USERHOST:
-                *(NC_STACK_ypabact **)val.value.p_data = getYW_userHostStation();
-                break;
-
-            case YW_ATT_USERVEHICLE:
-                *(NC_STACK_ypabact **)val.value.p_data = getYW_userVehicle();
-                break;
-
-            case YW_ATT_WPNPROTOS:
-                *(WeapProto **)val.value.p_data = getYW_weaponProtos();
-                break;
-
-            case YW_ATT_BUILDPROTOS:
-                *(BuildProto **)val.value.p_data = getYW_buildProtos();
-                break;
-
-            case YW_ATT_VHCLPROTOS:
-                *(VhclProto **)val.value.p_data = getYW_vhclProtos();
-                break;
-
-            case YW_ATT_LVLFINISHED:
-                *(int *)val.value.p_data = getYW_lvlFinished();
-                break;
-
-            case YW_ATT_SCREEN_W:
-                *(int *)val.value.p_data = getYW_screenW();
-                break;
-
-            case YW_ATT_SCREEN_H:
-                *(int *)val.value.p_data = getYW_screenH();
-                break;
-
-            case YW_ATT_LOCALE_STRINGS:
-                *(char ***)val.value.p_data = getYW_localeStrings();
-                break;
-
-            case YW_ATT_LVL_INFO:
-                *(LevelInfo **)val.value.p_data = getYW_levelInfo();
-                break;
-
-            case YW_ATT_DESTROY_FX:
-                *(int *)val.value.p_data = getYW_destroyFX();
-                break;
-
-            case YW_ATT_PNET:
-                *(NC_STACK_windp **)val.value.p_data = getYW_pNET();
-                break;
-
-            case YW_ATT_INVULNERABLE:
-                *(int *)val.value.p_data = getYW_invulnerable();
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_nucleus::func3(stak);
-}
-
-
 void sub_445230(NC_STACK_ypaworld *yw)
 {
     if ( yw->current_bact->getBACT_extraViewer() )
@@ -930,16 +738,16 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
     extern bool SPEED_DOWN_NET; //In yw_net.cpp
 
     if ( (gui_lstvw.IsClosed() && lstvw2.IsClosed())
-            || (arg->field_8->downed_key != UAVK_RETURN && arg->field_8->downed_key != UAVK_ESCAPE) )
+            || (arg->field_8->KbdLastHit != Input::KC_RETURN && arg->field_8->KbdLastHit != Input::KC_ESCAPE) )
     {
-        field_826F = 0;
+        field_826F = Input::KC_NONE;
     }
     else
     {
-        field_826F = arg->field_8->downed_key;
-        arg->field_8->downed_key = 0;
-        arg->field_8->downed_key_2 = 0;
-        arg->field_8->dword8 = 0;
+        field_826F = arg->field_8->KbdLastHit;
+        arg->field_8->KbdLastHit = Input::KC_NONE;
+        arg->field_8->KbdLastDown = Input::KC_NONE;
+        arg->field_8->HotKeyID = -1;
     }
 
     if ( !ypaworld_func64__sub4(this, arg) )
@@ -954,7 +762,7 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
         if ( do_screenshooting )
         {
             arg->TimeStamp -= arg->DTime;
-            arg->field_8->period = 40;
+            arg->field_8->Period = 40;
             arg->DTime = 40;
             arg->TimeStamp += arg->DTime;
         }
@@ -988,24 +796,24 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
 
         if ( !field_138c )
         {
-            ypaworld_func64__sub1(this, arg->field_8); //Precompute input (add mouse turn)
+            ypaworld_func64__sub1(arg->field_8); //Precompute input (add mouse turn)
 
             ClickBoxInf *winp = &arg->field_8->ClickInf;
 
             if ( field_1b1c )
             {
-                if ( winp->move.screenPos.x != field_1b20 || winp->move.screenPos.y != field_1b22 )
+                if ( winp->move.ScreenPos.x != field_1b20 || winp->move.ScreenPos.y != field_1b22 )
                     field_1b1c = 0;
             }
             else
             {
-                if ( arg->field_8->downed_key )
+                if ( arg->field_8->KbdLastHit != Input::KC_NONE )
                 {
-                    if ( arg->field_8->downed_key != 0x81 && arg->field_8->downed_key != 0x83 && arg->field_8->downed_key != 0x82 && !(arg->field_8->but_flags & 0x10) )
+                    if ( arg->field_8->KbdLastHit != Input::KC_LMB && arg->field_8->KbdLastHit != Input::KC_RMB && arg->field_8->KbdLastHit != Input::KC_MMB && !(arg->field_8->Buttons.Is(4)) )
                     {
                         field_1b1c = 1;
-                        field_1b20 = winp->move.screenPos.x;
-                        field_1b22 = winp->move.screenPos.y;
+                        field_1b20 = winp->move.ScreenPos.x;
+                        field_1b22 = winp->move.ScreenPos.y;
                     }
                 }
             }
@@ -1023,7 +831,7 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
         field_1B6E = 1024 / arg->DTime;
         p_1_grp[0][0] = field_1B6E;
 
-        ypaworld_func184(World::History::Frame(timeStamp));
+        HistoryEventAdd(World::History::Frame(timeStamp));
 
         uint32_t v22 = profiler_begin();
 
@@ -1036,20 +844,15 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
 
             uint32_t v23 = profiler_begin();
 
-            for (int i = 0; i < sectors_maxY2 * sectors_maxX2; i++)
+            for (int i = 0; i < _mapHeight * _mapWidth; i++)
             {
-                cellArea *tmp = cells + i;
+                cellArea *tmp = _cells + i;
 
                 tmp->view_mask = 1 << tmp->owner;
             }
 
-            bact_node *v32 = (bact_node *)bact_list.head;
-            while (v32->next)
-            {
-                v32->bact->MarkSectorsForView(NULL);
-
-                v32 = (bact_node *)v32->next;
-            }
+            for (NC_STACK_ypabact* &unit : _unitsList)
+                unit->MarkSectorsForView();
 
             p_1_grp[0][2] = profiler_end(v23);
 
@@ -1063,9 +866,9 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
             ypaworld_func64__sub15(this);
             ypaworld_func64__sub16(this);
             ypaworld_func64__sub17(this);
-            sub_4C40AC(this);
+            sub_4C40AC();
             ypaworld_func64__sub9(this);
-            ypaworld_func64__sub19(this);
+            ypaworld_func64__sub19();
             ypaworld_func64__sub20(this, arg->DTime);
 
             if ( !field_138c )
@@ -1073,12 +876,12 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
                 uint32_t v33 = profiler_begin();
 
                 ypaworld_func64__sub8(this);
-                ypaworld_func64__sub7(this, arg->field_8);
+                ypaworld_func64__sub7(arg->field_8);
 
                 sub_445230(this);
 
                 ypaworld_func64__sub14(this);
-                ypaworld_func64__sub21(this, arg->field_8);
+                ypaworld_func64__sub21(arg->field_8);
 
                 p_1_grp[0][3] = profiler_end(v33);
             }
@@ -1096,19 +899,17 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
 
             uint32_t v37 = profiler_begin();
 
-            bact_node *nnode = (bact_node *)bact_list.head;
-            while ( nnode->next )
+            for ( World::RefBactList::iterator it = _unitsList.begin(); it != _unitsList.end(); )
             {
-                bact_node *next_node = (bact_node *)nnode->next;
-
-                if (isNetGame && nnode->bact != UserRobo && nnode->bact->_bact_type == BACT_TYPES_ROBO)
-                    nnode->bact->NetUpdate(&field_1b24);
+                NC_STACK_ypabact *unit = *it;
+                it++;
+                
+                if (isNetGame && unit != UserRobo && unit->_bact_type == BACT_TYPES_ROBO)
+                    unit->NetUpdate(&field_1b24);
                 else
-                    nnode->bact->Update(&field_1b24);
+                    unit->Update(&field_1b24);
 
                 field_1b24.units_count++;
-
-                nnode = next_node;
             }
 
             p_1_grp[0][4] = profiler_end(v37);
@@ -1183,7 +984,7 @@ size_t NC_STACK_ypaworld::base_func64(base_64arg *arg)
             v58->locSclRot = v57 * v58->locSclRot;
 
             if ( sceneRecorder->do_record )
-                recorder_write_frame(this);
+                recorder_write_frame();
 
             ypaworld_func64__sub3(this);
 
@@ -1313,16 +1114,14 @@ void sub_47C29C(NC_STACK_ypaworld *yw, cellArea *cell, int a3)
 
     if ( a4 )
     {
-        yw->BuildProtos[a4].enable_mask = 0;
-        yw->BuildProtos[a4].enable_mask |= 1 << yw->GameShell->netPlayerOwner;
+        yw->BuildProtos[a4].EnableMask = 0;
+        yw->BuildProtos[a4].EnableMask |= 1 << yw->GameShell->netPlayerOwner;
     }
 
-    char v11[128];
-
-    strcpy(v11, get_lang_string(yw->string_pointers_p2, 221, "TECHNOLOGY UPGRADE!\n"));
+    std::string v11 = get_lang_string(yw->string_pointers_p2, 221, "TECHNOLOGY UPGRADE!\n");
 
     yw_arg159 v14;
-    v14.txt = v11;
+    v14.txt = v11.c_str();
     v14.unit = 0;
     v14.field_4 = 48;
 
@@ -1370,7 +1169,7 @@ void ypaworld_func129__sub1(NC_STACK_ypaworld *yw, cellArea *cell, int a3)
         yw->VhclProtos[a3a].disable_enable_bitmask = 0;
 
     if ( a4 )
-        yw->BuildProtos[a4].enable_mask = 0;
+        yw->BuildProtos[a4].EnableMask = 0;
 
     std::string v13 = get_lang_string(yw->string_pointers_p2, 229, "TECH-UPGRADE LOST!  ");
     v13 += gem.MsgDefault;
@@ -1419,7 +1218,7 @@ void NC_STACK_ypaworld::yw_ActivateWunderstein(cellArea *cell, int gemid)
     if ( !gem.ScriptFile.empty() )
     {
         if ( !sub_4DA354(gem.ScriptFile) )
-            ypa_log_out("yw_ActivateWunderstein: ERROR parsing script %s.\n", gem.ScriptFile);
+            ypa_log_out("yw_ActivateWunderstein: ERROR parsing script %s.\n", gem.ScriptFile.c_str());
     }
     else
     {
@@ -1551,9 +1350,9 @@ void NC_STACK_ypaworld::ypaworld_func129(yw_arg129 *arg)
     int secX = arg->pos.x / 1200.0;
     int secY = -arg->pos.z / 1200.0;
 
-    if ( secX > 0 && sectors_maxX2 - 1 > secX && secY > 0 && sectors_maxY2 - 1 > secY )
+    if ( secX > 0 && _mapWidth - 1 > secX && secY > 0 && _mapHeight - 1 > secY )
     {
-        cellArea *cell = &cells[secX + sectors_maxX2 * secY];
+        cellArea *cell = &_cells[secX + _mapWidth * secY];
 
         int v8 = (int)(arg->pos.x / 150.0) % 8;
 
@@ -1628,7 +1427,7 @@ void NC_STACK_ypaworld::ypaworld_func129(yw_arg129 *arg)
 
             ypaworld_func129__sub0(this, cell, arg);
 
-            sb_0x44fc60(this, cell, secX, secY, arg->field_14, arg);
+            CellCheckHealth(cell, secX, secY, arg->field_14, arg);
 
             if ( cell->w_type == 4 )
             {
@@ -1639,7 +1438,7 @@ void NC_STACK_ypaworld::ypaworld_func129(yw_arg129 *arg)
                     else
                         yw_ActivateWunderstein(cell, cell->w_id);                  
 
-                    ypaworld_func184( World::History::Upgrade(secX, secY, cell->owner, _Gems[ field_2b78 ].Type, last_modify_vhcl, last_modify_weapon, last_modify_build) );
+                    HistoryEventAdd( World::History::Upgrade(secX, secY, cell->owner, _Gems[ field_2b78 ].Type, last_modify_vhcl, last_modify_weapon, last_modify_build) );
                 }
             }
             else if ( cell->w_type == 7 )
@@ -1673,9 +1472,9 @@ size_t NC_STACK_ypaworld::ypaworld_func130(yw_130arg *arg)
     arg->pos_x_cntr = arg->pos_x - arg->sec_x * 1200.0 + -600.0;
     arg->pos_y_cntr = arg->pos_z + arg->sec_z * 1200.0 + 600.0;
 
-    if ( arg->sec_x < 0 || arg->sec_z < 0 || arg->sec_x >= sectors_maxX2 || arg->sec_z >= sectors_maxY2 )
+    if ( arg->sec_x < 0 || arg->sec_z < 0 || arg->sec_x >= _mapWidth || arg->sec_z >= _mapHeight )
     {
-        ypa_log_out("YWM_GETSECTORINFO %d %d max: %d %d\n", arg->sec_x, arg->sec_z, sectors_maxX2, sectors_maxY2);
+        ypa_log_out("YWM_GETSECTORINFO %d %d max: %d %d\n", arg->sec_x, arg->sec_z, _mapWidth, _mapHeight);
         ypa_log_out("YWM_GETSECTORINFO ausserhalb!!!\n");
 
         arg->pcell = NULL;
@@ -1683,7 +1482,7 @@ size_t NC_STACK_ypaworld::ypaworld_func130(yw_130arg *arg)
         return 0;
     }
 
-    arg->pcell = &cells[sectors_maxX2 * arg->sec_z + arg->sec_x];
+    arg->pcell = &_cells[_mapWidth * arg->sec_z + arg->sec_x];
     return 1;
 }
 
@@ -1712,8 +1511,8 @@ void NC_STACK_ypaworld::ypaworld_func134(NC_STACK_ypabact *bact)
 {
     newMaster_msg arg73;
 
-    arg73.bact = (NC_STACK_ypabact *)1;
-    arg73.list = &bact_list;
+    arg73.bact = NULL;
+    arg73.list = &_unitsList;
 
     bact->SetNewMaster(&arg73);
 }
@@ -1933,8 +1732,8 @@ void NC_STACK_ypaworld::ypaworld_func144(NC_STACK_ypabact *bacto)
     SFXEngine::SFXe.sub_423DD8(&bacto->_soundcarrier);
 
     newMaster_msg cache;
-    cache.bact = (NC_STACK_ypabact *)1;
-    cache.list = &dead_cache;
+    cache.bact = NULL;
+    cache.list = &_deadCacheList;
 
     bacto->SetNewMaster(&cache);
 
@@ -1961,56 +1760,42 @@ size_t NC_STACK_ypaworld::ypaworld_func145(NC_STACK_ypabact *bact)
             return 1;
     }
 
-    bact_node *v21 = (bact_node *)bact_list.head;
-
-    while (v21->next) //Robos
+    for ( NC_STACK_ypabact* &station : _unitsList ) //Robos
     {
-        if ( v21->bact->_status_flg & BACT_STFLAG_ISVIEW )
+        if ( station->_status_flg & BACT_STFLAG_ISVIEW )
         {
-            int v10 = abs(v21->bact->_sectX - bact->_sectX);
-            int v11 = abs(v21->bact->_sectY - bact->_sectY);
+            int v10 = abs(station->_sectX - bact->_sectX);
+            int v11 = abs(station->_sectY - bact->_sectY);
 
             if ( v10 + v11 <= (field_1368 - 1) / 2 )
                 return 1;
         }
 
-
-
-        bact_node *v22 = (bact_node *)v21->bact->_subjects_list.head;
-
-        while (v22->next) // Squad comms
+        
+        for ( NC_STACK_ypabact* &comm : station->_kidList ) // Squad comms
         {
-            if ( v22->bact->_status_flg & BACT_STFLAG_ISVIEW )
+            if ( comm->_status_flg & BACT_STFLAG_ISVIEW )
             {
-                int v10 = abs(v22->bact->_sectX - bact->_sectX);
-                int v11 = abs(v22->bact->_sectY - bact->_sectY);
+                int v10 = abs(comm->_sectX - bact->_sectX);
+                int v11 = abs(comm->_sectY - bact->_sectY);
 
                 if ( v10 + v11 <= (field_1368 - 1) / 2 )
                     return 1;
             }
 
 
-
-            bact_node *v23 = (bact_node *)v22->bact->_subjects_list.head;
-
-            while (v23->next) // Squad units
+            for ( NC_STACK_ypabact* &unit : comm->_kidList ) // Squad units
             {
-                if ( v23->bact->_status_flg & BACT_STFLAG_ISVIEW )
+                if ( unit->_status_flg & BACT_STFLAG_ISVIEW )
                 {
-                    int v10 = abs(v23->bact->_sectX - bact->_sectX);
-                    int v11 = abs(v23->bact->_sectY - bact->_sectY);
+                    int v10 = abs(unit->_sectX - bact->_sectX);
+                    int v11 = abs(unit->_sectY - bact->_sectY);
 
                     if ( v10 + v11 <= (field_1368 - 1) / 2 )
                         return 1;
                 }
-
-                v23 = (bact_node *)v23->next;
             }
-
-            v22 = (bact_node *)v22->next;
         }
-
-        v21 = (bact_node *)v21->next;
     }
 
     return 0;
@@ -2024,7 +1809,7 @@ NC_STACK_ypabact * NC_STACK_ypaworld::ypaworld_func146(ypaworld_arg146 *vhcl_id)
 
     VhclProto *vhcl = &VhclProtos[vhcl_id->vehicle_id];
 
-    NC_STACK_ypabact *bacto = yw_createUnit(this, vhcl->model_id);
+    NC_STACK_ypabact *bacto = yw_createUnit(vhcl->model_id);
 
     if ( bacto )
     {
@@ -2179,7 +1964,7 @@ NC_STACK_ypamissile * NC_STACK_ypaworld::ypaworld_func147(ypaworld_arg146 *arg)
     if ( !(wproto->model_id & 1) )
         return NULL;
 
-    NC_STACK_ypamissile *wobj = dynamic_cast<NC_STACK_ypamissile *>( yw_createUnit(this, wproto->field_0) );
+    NC_STACK_ypamissile *wobj = dynamic_cast<NC_STACK_ypamissile *>( yw_createUnit(wproto->field_0) );
 
     if ( !wobj )
         return NULL;
@@ -2338,7 +2123,7 @@ size_t NC_STACK_ypaworld::ypaworld_func148(ypaworld_arg148 *arg)
     int y = arg->y;
     int x = arg->x;
 
-    cellArea *cell = &cells[x + y * sectors_maxX2];
+    cellArea *cell = &_cells[x + y * _mapWidth];
 
     bool UserInSec = false;
 
@@ -2360,7 +2145,7 @@ size_t NC_STACK_ypaworld::ypaworld_func148(ypaworld_arg148 *arg)
     else if ( UserInSec  && !arg->field_C )
         return 0;
     else if ( cell->w_type == 2 )
-        sub_44F500(this, cell->w_id);
+        PowerStationErase(cell->w_id);
     else if ( (cell->w_type == 4 || cell->w_type == 5 || cell->w_type == 6) && !arg->field_C )
         return 0;
     else if ( cell->w_type == 7 && isNetGame )
@@ -2368,13 +2153,13 @@ size_t NC_STACK_ypaworld::ypaworld_func148(ypaworld_arg148 *arg)
 
     if ( arg->field_C )
     {
-        sb_0x456384(this, x, y, arg->ownerID2, arg->blg_ID, arg->field_18 & 1);
+        sb_0x456384(x, y, arg->ownerID2, arg->blg_ID, arg->field_18 & 1);
     }
     else
     {
         ypaworld_func148__sub0(this, x, y);
 
-        if ( !ypaworld_func148__sub1(this, arg->ownerID, 3000, x, y, arg->ownerID2, arg->blg_ID) )
+        if ( !ypaworld_func148__sub1(arg->ownerID, 3000, x, y, arg->ownerID2, arg->blg_ID) )
             return 0;
     }
 
@@ -2557,9 +2342,9 @@ void NC_STACK_ypaworld::ypaworld_func150(yw_arg150 *arg)
         int v12 = -v7 >> 16;
         int v29 = v6 >> 16;
 
-        if ( v29 >= 0 && v29 < sectors_maxX2 && v12 >= 0 && v12 < sectors_maxY2 )
+        if ( v29 >= 0 && v29 < _mapWidth && v12 >= 0 && v12 < _mapHeight )
         {
-            for ( NC_STACK_ypabact* &sect_bacts : cells[v29 + v12 * sectors_maxX2].unitsList )
+            for ( NC_STACK_ypabact* &sect_bacts : _cells[v29 + v12 * _mapWidth].unitsList )
             {
                 if ( sect_bacts != arg->unit && sect_bacts->_status != BACT_STATUS_DEAD )
                 {
@@ -2600,7 +2385,7 @@ void NC_STACK_ypaworld::ypaworld_func150(yw_arg150 *arg)
 }
 
 
-void NC_STACK_ypaworld::ypaworld_func151()
+void NC_STACK_ypaworld::DeleteLevel()
 {
     sub_471AB8();
 
@@ -2619,18 +2404,15 @@ void NC_STACK_ypaworld::ypaworld_func151()
     {
         if ( GameShell )
         {
-            char buf[300];
-            sprintf(buf, "save:%s/sgisold.txt", GameShell->user_name.c_str());
-
-            FSMgr::FileHandle *fil = uaOpenFile(buf, "w");
+            FSMgr::FileHandle *fil = uaOpenFile(fmt::sprintf("save:%s/sgisold.txt", GameShell->user_name), "w");
 
             if ( fil )
                 delete fil;
 
-            sprintf(buf, "%s/user.txt", GameShell->user_name.c_str());
+            std::string buf = fmt::sprintf("%s/user.txt", GameShell->user_name);
 
             yw_arg172 arg171;
-            arg171.usertxt = buf;
+            arg171.usertxt = buf.c_str();
             arg171.field_4 = GameShell->user_name.c_str();
             arg171.usr = GameShell;
             arg171.field_10 = 0;
@@ -2642,8 +2424,7 @@ void NC_STACK_ypaworld::ypaworld_func151()
 
             if ( fil )
             {
-                strcpy(buf, GameShell->user_name.c_str());
-                fil->write(buf, strlen(buf));
+                fil->printf(GameShell->user_name);
                 delete fil;
             }
         }
@@ -2652,7 +2433,7 @@ void NC_STACK_ypaworld::ypaworld_func151()
     if ( isNetGame )
     {
         if ( !GameShell->sentAQ )
-            sub_47DB04(this, 0);
+            sub_47DB04(0);
 
         GameShell->ypaworld_func151__sub7();
         GameShell->yw_netcleanup();
@@ -2707,51 +2488,35 @@ void NC_STACK_ypaworld::ypaworld_func151()
     else
         plowner = 0;
 
-    while ( 1 )
+    while ( !_deadCacheList.empty() )
     {
-        bact_node *bct = (bact_node *)dead_cache.head;
-
-        if ( !bct->next )
-            break;
-
-        NC_STACK_ypabact *bacto = bct->bact;
+        NC_STACK_ypabact *bct = _deadCacheList.front();
 
         if ( field_727c )
         {
-            if ( plowner != bct->bact->_owner && bct->bact->_bact_type == BACT_TYPES_ROBO )
-                sub_4C8EB4(bct->bact);
+            if ( plowner != bct->_owner && bct->_bact_type == BACT_TYPES_ROBO )
+                NetRemove(bct);
         }
 
-        delete_class_obj(bacto);
+        Nucleus::Delete(bct);
     }
 
-    while ( 1 )
+    while ( !_unitsList.empty() )
     {
-        bact_node *bct = (bact_node *)bact_list.head;
-
-        if ( !bct->next )
-            break;
-
-        NC_STACK_ypabact *bacto = bct->bact;
+        NC_STACK_ypabact *bct = _unitsList.front();
 
         if ( field_727c )
         {
-            if ( plowner != bct->bact->_owner && bct->bact->_bact_type == BACT_TYPES_ROBO )
-                sub_4C8EB4(bct->bact);
+            if ( plowner != bct->_owner && bct->_bact_type == BACT_TYPES_ROBO )
+                NetRemove(bct);
         }
 
-        delete_class_obj(bacto);
+        Nucleus::Delete(bct);
     }
 
-    while ( 1 )
-    {
-        bact_node *bct = (bact_node *)dead_cache.head;
-
-        if ( !bct->next )
-            break;
-
-        delete_class_obj(bct->bact);
-    }
+    // NetRemove can fill deadcache, so clean it again
+    while ( !_deadCacheList.empty() )
+        Nucleus::Delete(_deadCacheList.front());
 
     ypaworld_func151__sub0(this);
 
@@ -2815,13 +2580,7 @@ void UserData::sub_46D2B4()
     int v10 = field_D36;
 
     for (int i = 0; i <= 48; i++)
-    {
-        winp_68arg winpArg;
-        winpArg.id = i;
-        winpArg.keyname = "nop";
-
-        input_class->keyb_setHotkey(&winpArg);
-    }
+        input_class->SetHotKey(i, "nop");
 
     for (int i = 1; i <= 45; i++)
     {
@@ -2842,9 +2601,9 @@ size_t NC_STACK_ypaworld::ypaworld_func154(UserData *usr)
     _levelInfo->State = 8;
     usr->envMode = ENVMODE_TITLE;
 
-    get_keyvalue_from_ini(0, ypaworld_keys, 4);
+    Common::Ini::ParseIniFile(DefaultIniFile, &ypaworld_keys);
 
-    netgame_exclusivegem = ypaworld_keys[0].value.val;
+    netgame_exclusivegem = ypaworld_keys[0].Get<bool>();
 
     ypaworld__string_pointers = getYW_localeStrings();
 
@@ -2852,7 +2611,7 @@ size_t NC_STACK_ypaworld::ypaworld_func154(UserData *usr)
     usr->video_mode_list.clear();
     usr->lang_dlls.clear();
 
-    set_keys_vals(this);
+    LoadKeyNames();
 
     fill_videmodes_list(usr);
     listSaveDir("save:");
@@ -2892,208 +2651,54 @@ size_t NC_STACK_ypaworld::ypaworld_func154(UserData *usr)
 
     usr->field_FBE = 0;
 
-    usr->keyConfig[3].inp_type = World::KEYC_TYPE_SLIDER;
-    usr->keyConfig[3].keyID = 3;
-    usr->keyConfig[3].KeyCode = 39;
-    usr->keyConfig[3].slider_neg = 37;
-
-
-    usr->keyConfig[4].inp_type = World::KEYC_TYPE_SLIDER;
-    usr->keyConfig[4].keyID = 4;
-    usr->keyConfig[4].KeyCode = 38;
-    usr->keyConfig[4].slider_neg = 40;
-
-    usr->keyConfig[8].inp_type = World::KEYC_TYPE_SLIDER;
-    usr->keyConfig[8].keyID = 0;
-    usr->keyConfig[8].KeyCode = 39;
-    usr->keyConfig[8].slider_neg = 37;
-
-
-    usr->keyConfig[6].inp_type = World::KEYC_TYPE_SLIDER;
-    usr->keyConfig[6].keyID = 1;
-    usr->keyConfig[6].KeyCode = 38;
-    usr->keyConfig[6].slider_neg = 40;
-
-    usr->keyConfig[7].inp_type = World::KEYC_TYPE_SLIDER;
-    usr->keyConfig[7].keyID = 2;
-    usr->keyConfig[7].KeyCode = 17;
-    usr->keyConfig[7].slider_neg = 16;
-
-    usr->keyConfig[5].inp_type = World::KEYC_TYPE_SLIDER;
-    usr->keyConfig[5].keyID = 5;
-    usr->keyConfig[5].KeyCode = 65;
-    usr->keyConfig[5].slider_neg = 89;
-
-    usr->keyConfig[10].inp_type = World::KEYC_TYPE_BUTTON;
-    usr->keyConfig[10].keyID = 0;
-    usr->keyConfig[10].KeyCode = 32;
-
-    usr->keyConfig[11].inp_type = World::KEYC_TYPE_BUTTON;
-    usr->keyConfig[11].keyID = 1;
-    usr->keyConfig[11].KeyCode = 9;
-
-    usr->keyConfig[12].inp_type = World::KEYC_TYPE_BUTTON;
-    usr->keyConfig[12].keyID = 2;
-    usr->keyConfig[12].KeyCode = 13;
-
-    usr->keyConfig[9].inp_type = World::KEYC_TYPE_BUTTON;
-    usr->keyConfig[9].keyID = 3;
-    usr->keyConfig[9].KeyCode = 96;
-
-    usr->keyConfig[14].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[14].keyID = 25;
-    usr->keyConfig[14].KeyCode = 86;
-
-    usr->keyConfig[17].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[17].keyID = 2;
-    usr->keyConfig[17].KeyCode = 78;
-
-    usr->keyConfig[18].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[18].keyID = 3;
-    usr->keyConfig[18].KeyCode = 65;
-
-    usr->keyConfig[16].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[16].keyID = 0;
-    usr->keyConfig[16].KeyCode = 79;
-
-    usr->keyConfig[37].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[37].keyID = 1;
-    usr->keyConfig[37].KeyCode = 32;
-
-    usr->keyConfig[35].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[35].keyID = 4;
-    usr->keyConfig[35].KeyCode = 67;
-
-    usr->keyConfig[15].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[15].keyID = 7;
-    usr->keyConfig[15].KeyCode = 71;
-
-    usr->keyConfig[25].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[25].keyID = 8;
-    usr->keyConfig[25].KeyCode = 77;
-
-    usr->keyConfig[19].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[19].keyID = 9;
-    usr->keyConfig[19].KeyCode = 70;
-
-    usr->keyConfig[27].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[27].keyID = 10;
-    usr->keyConfig[27].KeyCode = 0;
-
-    usr->keyConfig[28].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[28].keyID = 11;
-    usr->keyConfig[28].KeyCode = 0;
-
-    usr->keyConfig[29].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[29].keyID = 12;
-    usr->keyConfig[29].KeyCode = 0;
-
-    usr->keyConfig[31].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[31].keyID = 14;
-    usr->keyConfig[31].KeyCode = 0;
-
-    usr->keyConfig[32].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[32].keyID = 16;
-    usr->keyConfig[32].KeyCode = 0;
-
-    usr->keyConfig[33].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[33].keyID = 17;
-    usr->keyConfig[33].KeyCode = 0;
-
-    usr->keyConfig[30].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[30].keyID = 18;
-    usr->keyConfig[30].KeyCode = 0;
-
-    usr->keyConfig[41].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[41].keyID = 20;
-    usr->keyConfig[41].KeyCode = 112;
-
-    usr->keyConfig[38].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[38].keyID = 21;
-    usr->keyConfig[38].KeyCode = 113;
-
-    usr->keyConfig[40].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[40].keyID = 22;
-    usr->keyConfig[40].KeyCode = 114;
-
-    usr->keyConfig[39].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[39].keyID = 23;
-    usr->keyConfig[39].KeyCode = 115;
-
-    usr->keyConfig[2].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[2].keyID = 24;
-    usr->keyConfig[2].KeyCode = 27;
-
-    usr->keyConfig[34].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[34].keyID = 27;
-    usr->keyConfig[34].KeyCode = 0;
-
-    usr->keyConfig[42].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[42].keyID = 31;
-    usr->keyConfig[42].KeyCode = 8;
-
-    usr->keyConfig[1].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[1].keyID = 32;
-    usr->keyConfig[1].KeyCode = 0;
-
-    usr->keyConfig[43].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[43].keyID = 37;
-    usr->keyConfig[43].KeyCode = 101;
-
-    usr->keyConfig[20].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[20].keyID = 38;
-    usr->keyConfig[20].KeyCode = 49;
-
-    usr->keyConfig[21].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[21].keyID = 39;
-    usr->keyConfig[21].KeyCode = 50;
-
-    usr->keyConfig[22].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[22].keyID = 40;
-    usr->keyConfig[22].KeyCode = 51;
-
-    usr->keyConfig[23].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[23].keyID = 41;
-    usr->keyConfig[23].KeyCode = 52;
-
-    usr->keyConfig[24].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[24].keyID = 42;
-    usr->keyConfig[24].KeyCode = 53;
-
-    usr->keyConfig[26].inp_type = World::KEYC_TYPE_BUTTON;
-    usr->keyConfig[26].keyID = 4;
-    usr->keyConfig[26].KeyCode = 16;
-
-    usr->keyConfig[44].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[44].keyID = 43;
-    usr->keyConfig[44].KeyCode = 0;
-
-    usr->keyConfig[36].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[36].keyID = 44;
-    usr->keyConfig[36].KeyCode = 0;
-
-    usr->keyConfig[13].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[13].keyID = 45;
-    usr->keyConfig[13].KeyCode = 0;
-
-    usr->keyConfig[45].inp_type = World::KEYC_TYPE_HOTKEY;
-    usr->keyConfig[45].keyID = 46;
-    usr->keyConfig[45].KeyCode = 0;
+    usr->InputConfig[World::INPUT_BIND_DRIVE_DIR]   = UserData::TInputConf(World::INPUT_BIND_TYPE_SLIDER, 3,  Input::KC_RIGHT, Input::KC_LEFT);
+    usr->InputConfig[World::INPUT_BIND_DRIVE_SPEED] = UserData::TInputConf(World::INPUT_BIND_TYPE_SLIDER, 4,  Input::KC_UP, Input::KC_DOWN);
+    usr->InputConfig[World::INPUT_BIND_FLY_DIR]     = UserData::TInputConf(World::INPUT_BIND_TYPE_SLIDER, 0,  Input::KC_RIGHT, Input::KC_LEFT);
+    usr->InputConfig[World::INPUT_BIND_FLY_HEIGHT]  = UserData::TInputConf(World::INPUT_BIND_TYPE_SLIDER, 1,  Input::KC_UP, Input::KC_DOWN);
+    usr->InputConfig[World::INPUT_BIND_FLY_SPEED]   = UserData::TInputConf(World::INPUT_BIND_TYPE_SLIDER, 2,  Input::KC_CTRL, Input::KC_SHIFT);
+    usr->InputConfig[World::INPUT_BIND_GUN_HEIGHT]  = UserData::TInputConf(World::INPUT_BIND_TYPE_SLIDER, 5,  Input::KC_A, Input::KC_Y);
+    usr->InputConfig[World::INPUT_BIND_FIRE]        = UserData::TInputConf(World::INPUT_BIND_TYPE_BUTTON, 0,  Input::KC_SPACE);
+    usr->InputConfig[World::INPUT_BIND_CAMFIRE]     = UserData::TInputConf(World::INPUT_BIND_TYPE_BUTTON, 1,  Input::KC_TAB);
+    usr->InputConfig[World::INPUT_BIND_GUN]         = UserData::TInputConf(World::INPUT_BIND_TYPE_BUTTON, 2,  Input::KC_RETURN);
+    usr->InputConfig[World::INPUT_BIND_BRAKE]       = UserData::TInputConf(World::INPUT_BIND_TYPE_BUTTON, 3,  Input::KC_NUM0);
+    usr->InputConfig[World::INPUT_BIND_HUD]         = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 25, Input::KC_V);
+    usr->InputConfig[World::INPUT_BIND_NEW]         = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 2,  Input::KC_N);
+    usr->InputConfig[World::INPUT_BIND_ADD]         = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 3,  Input::KC_A);
+    usr->InputConfig[World::INPUT_BIND_ORDER]       = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 0,  Input::KC_O);
+    usr->InputConfig[World::INPUT_BIND_ATTACK]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 1,  Input::KC_SPACE);
+    usr->InputConfig[World::INPUT_BIND_CONTROL]     = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 4,  Input::KC_C);
+    usr->InputConfig[World::INPUT_BIND_AUTOPILOT]   = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 7,  Input::KC_G);
+    usr->InputConfig[World::INPUT_BIND_MAP]         = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 8,  Input::KC_M);
+    usr->InputConfig[World::INPUT_BIND_SQ_MANAGE]   = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 9,  Input::KC_F);
+    usr->InputConfig[World::INPUT_BIND_LANDLAYER]   = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 10, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_OWNER]       = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 11, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_HEIGHT]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 12, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_LOCKVIEW]    = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 14, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_ZOOMIN]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 16, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_ZOOMOUT]     = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 17, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_MINIMAP]     = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 18, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_NEXT_COMM]   = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 20, Input::KC_F1);
+    usr->InputConfig[World::INPUT_BIND_TO_HOST]     = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 21, Input::KC_F2);
+    usr->InputConfig[World::INPUT_BIND_NEXT_UNIT]   = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 22, Input::KC_F3);
+    usr->InputConfig[World::INPUT_BIND_TO_COMM]     = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 23, Input::KC_F4);
+    usr->InputConfig[World::INPUT_BIND_QUIT]        = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 24, Input::KC_ESCAPE);
+    usr->InputConfig[World::INPUT_BIND_LOG_WND]     = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 27, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_LAST_MSG]    = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 31, Input::KC_BACKSPACE);
+    usr->InputConfig[World::INPUT_BIND_PAUSE]       = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 32, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_TO_ALL]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 37, Input::KC_NUM5);
+    usr->InputConfig[World::INPUT_BIND_AGGR_1]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 38, Input::KC_1);
+    usr->InputConfig[World::INPUT_BIND_AGGR_2]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 39, Input::KC_2);
+    usr->InputConfig[World::INPUT_BIND_AGGR_3]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 40, Input::KC_3);
+    usr->InputConfig[World::INPUT_BIND_AGGR_4]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 41, Input::KC_4);
+    usr->InputConfig[World::INPUT_BIND_AGGR_5]      = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 42, Input::KC_5);
+    usr->InputConfig[World::INPUT_BIND_WAPOINT]     = UserData::TInputConf(World::INPUT_BIND_TYPE_BUTTON, 4,  Input::KC_SHIFT);
+    usr->InputConfig[World::INPUT_BIND_HELP]        = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 43, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_LAST_SEAT]   = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 44, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_SET_COMM]    = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 45, Input::KC_NONE);
+    usr->InputConfig[World::INPUT_BIND_ANALYZER]    = UserData::TInputConf(World::INPUT_BIND_TYPE_HOTKEY, 46, Input::KC_NONE);
 
     usr->sub_46D2B4();
-
-    for (int i = 1; i < 46; i++)
-    {
-        usr->keyConfig[i].field_8 = usr->keyConfig[i].KeyCode;
-        usr->keyConfig[i].field_A = usr->keyConfig[i].slider_neg;
-    }
-
-    for (int i = 1; i < 46; i++)
-    {
-        usr->keyConfig[i].field_C = usr->keyConfig[i].KeyCode;
-        usr->keyConfig[i].field_E = usr->keyConfig[i].slider_neg;
-    }
-
+    
     usr->field_1756 = -2;
 
     windp_arg87 v67;
@@ -3241,8 +2846,7 @@ void sb_0x4e75e8__sub1(NC_STACK_ypaworld *yw, int mode)
 
     if ( yw->LevelNet->bg_n )
     {
-        char buf[256];
-        strcpy(buf, get_prefix_replacement("rsrc"));
+        std::string oldRsrc = get_prefix_replacement("rsrc");
 
         set_prefix_replacement("rsrc", "levels:");
 
@@ -3306,11 +2910,9 @@ void sb_0x4e75e8__sub1(NC_STACK_ypaworld *yw, int mode)
 
         if ( !menu_map.empty() )
         {
-            IDVList init_vals;
-            init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, menu_map.c_str());
-            init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
-            ilbm_menu_map = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+            ilbm_menu_map = Nucleus::CInit<NC_STACK_ilbm>({
+                {NC_STACK_rsrc::RSRC_ATT_NAME, menu_map},
+                {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1} } );
             if ( !ilbm_menu_map )
             {
                 ypa_log_out("world.ini: Could not load %s\n", menu_map.c_str());
@@ -3320,11 +2922,9 @@ void sb_0x4e75e8__sub1(NC_STACK_ypaworld *yw, int mode)
 
         if ( !rollover_map.empty() )
         {
-            IDVList init_vals;
-            init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, rollover_map.c_str());
-            init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
-            ilbm_rollover_map = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+            ilbm_rollover_map = Nucleus::CInit<NC_STACK_ilbm>({
+                {NC_STACK_rsrc::RSRC_ATT_NAME, rollover_map},
+                {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1} });
             if ( !ilbm_rollover_map )
             {
                 ypa_log_out("world.ini: Could not load %s\n", rollover_map.c_str());
@@ -3334,11 +2934,9 @@ void sb_0x4e75e8__sub1(NC_STACK_ypaworld *yw, int mode)
 
         if ( !finished_map.empty() )
         {
-            IDVList init_vals;
-            init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, finished_map.c_str());
-            init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
-            ilbm_finished_map = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+            ilbm_finished_map = Nucleus::CInit<NC_STACK_ilbm>({
+                {NC_STACK_rsrc::RSRC_ATT_NAME, finished_map},
+                {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1} });
             if ( !ilbm_finished_map )
             {
                 ypa_log_out("world.ini: Could not load %s\n", finished_map.c_str());
@@ -3348,11 +2946,9 @@ void sb_0x4e75e8__sub1(NC_STACK_ypaworld *yw, int mode)
 
         if ( !enabled_map.empty() )
         {
-            IDVList init_vals;
-            init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, enabled_map.c_str());
-            init_vals.Add(NC_STACK_bitmap::BMD_ATT_CONVCOLOR, 1);
-
-            ilbm_enabled_map = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+            ilbm_enabled_map = Nucleus::CInit<NC_STACK_ilbm>({
+                {NC_STACK_rsrc::RSRC_ATT_NAME, enabled_map},
+                {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1} });
             if ( !ilbm_enabled_map )
             {
                 ypa_log_out("world.ini: Could not load %s\n", enabled_map.c_str());
@@ -3361,10 +2957,7 @@ void sb_0x4e75e8__sub1(NC_STACK_ypaworld *yw, int mode)
         }
         if ( !mask_map.empty() )
         {
-            IDVList init_vals;
-            init_vals.Add(NC_STACK_rsrc::RSRC_ATT_NAME, mask_map.c_str());
-
-            ilbm_mask_map = Nucleus::CInit<NC_STACK_ilbm>(init_vals);
+            ilbm_mask_map = Nucleus::CInit<NC_STACK_ilbm>({{NC_STACK_rsrc::RSRC_ATT_NAME, mask_map}});
             if ( !ilbm_mask_map )
             {
                 ypa_log_out("world.ini: Could not load %s\n", mask_map.c_str());
@@ -3372,7 +2965,7 @@ void sb_0x4e75e8__sub1(NC_STACK_ypaworld *yw, int mode)
             }
         }
 
-        set_prefix_replacement("rsrc", buf);
+        set_prefix_replacement("rsrc", oldRsrc);
 
         if ( !v37 )
         {
@@ -3619,53 +3212,53 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
         usr->p_ypaworld->_win3d->setWDD_cursor(0);
     }
 
-    set_keys_vals(this);
+    LoadKeyNames();
 
-    usr->keyConfig[1].slider_name = get_lang_string(ypaworld__string_pointers, 544, "PAUSE");
-    usr->keyConfig[2].slider_name = get_lang_string(ypaworld__string_pointers, 536, "QUIT");
-    usr->keyConfig[3].slider_name = get_lang_string(ypaworld__string_pointers, 500, "DRIVE DIR");
-    usr->keyConfig[4].slider_name = get_lang_string(ypaworld__string_pointers, 501, "DRIVE SPEED");
-    usr->keyConfig[5].slider_name = get_lang_string(ypaworld__string_pointers, 511, "GUN HEIGHT");
-    usr->keyConfig[6].slider_name = get_lang_string(ypaworld__string_pointers, 502, "FLY HEIGHT");
-    usr->keyConfig[7].slider_name = get_lang_string(ypaworld__string_pointers, 503, "FLY SPEED");
-    usr->keyConfig[8].slider_name = get_lang_string(ypaworld__string_pointers, 504, "FLY DIR");
-    usr->keyConfig[9].slider_name = get_lang_string(ypaworld__string_pointers, 505, "STOP");
-    usr->keyConfig[10].slider_name = get_lang_string(ypaworld__string_pointers, 506, "FIRE");
-    usr->keyConfig[11].slider_name = get_lang_string(ypaworld__string_pointers, 507, "FIRE VIEW");
-    usr->keyConfig[12].slider_name = get_lang_string(ypaworld__string_pointers, 508, "FIRE GUN");
-    usr->keyConfig[13].slider_name = get_lang_string(ypaworld__string_pointers, 561, "MAKE CURRENT VEHICLE COMMANDER");
-    usr->keyConfig[14].slider_name = get_lang_string(ypaworld__string_pointers, 541, "HEADUP DISPLAY");
-    usr->keyConfig[15].slider_name = get_lang_string(ypaworld__string_pointers, 520, "AUTOPILOT");
-    usr->keyConfig[16].slider_name = get_lang_string(ypaworld__string_pointers, 513, "ORDER");
-    usr->keyConfig[17].slider_name = get_lang_string(ypaworld__string_pointers, 515, "NEW");
-    usr->keyConfig[18].slider_name = get_lang_string(ypaworld__string_pointers, 516, "ADD");
-    usr->keyConfig[19].slider_name = get_lang_string(ypaworld__string_pointers, 522, "FINDER");
-    usr->keyConfig[20].slider_name = get_lang_string(ypaworld__string_pointers, 553, "AGGR: COME BACK");
-    usr->keyConfig[21].slider_name = get_lang_string(ypaworld__string_pointers, 554, "AGGR: FIGHT TARGET");
-    usr->keyConfig[22].slider_name = get_lang_string(ypaworld__string_pointers, 555, "AGGR: FIGHT ENEMIES TOO");
-    usr->keyConfig[23].slider_name = get_lang_string(ypaworld__string_pointers, 556, "AGGR: CONQUER ALL ENEMY AREA TOO");
-    usr->keyConfig[24].slider_name = get_lang_string(ypaworld__string_pointers, 557, "AGGR: GO AMOK");
-    usr->keyConfig[25].slider_name = get_lang_string(ypaworld__string_pointers, 521, "MAP");
-    usr->keyConfig[26].slider_name = get_lang_string(ypaworld__string_pointers, 558, "SELECT WAYPOINT");
-    usr->keyConfig[27].slider_name = get_lang_string(ypaworld__string_pointers, 523, "LANDSCAPE");
-    usr->keyConfig[28].slider_name = get_lang_string(ypaworld__string_pointers, 524, "OWNER");
-    usr->keyConfig[29].slider_name = get_lang_string(ypaworld__string_pointers, 525, "HEIGHT");
-    usr->keyConfig[30].slider_name = get_lang_string(ypaworld__string_pointers, 531, "MAP MINI");
-    usr->keyConfig[31].slider_name = get_lang_string(ypaworld__string_pointers, 527, "LOCK VIEWER");
-    usr->keyConfig[32].slider_name = get_lang_string(ypaworld__string_pointers, 529, "ZOOM IN");
-    usr->keyConfig[33].slider_name = get_lang_string(ypaworld__string_pointers, 530, "ZOOM OUT");
-    usr->keyConfig[34].slider_name = get_lang_string(ypaworld__string_pointers, 538, "LOGWIN");
-    usr->keyConfig[35].slider_name = get_lang_string(ypaworld__string_pointers, 517, "CONTROL");
-    usr->keyConfig[36].slider_name = get_lang_string(ypaworld__string_pointers, 560, "GOTO LAST OCCUPIED VEHICLE");
-    usr->keyConfig[37].slider_name = get_lang_string(ypaworld__string_pointers, 514, "FIGHT");
-    usr->keyConfig[38].slider_name = get_lang_string(ypaworld__string_pointers, 533, "TO ROBO");
-    usr->keyConfig[39].slider_name = get_lang_string(ypaworld__string_pointers, 535, "TO COMMANDER");
-    usr->keyConfig[40].slider_name = get_lang_string(ypaworld__string_pointers, 534, "NEXT MAN");
-    usr->keyConfig[41].slider_name = get_lang_string(ypaworld__string_pointers, 532, "NEXT COM");
-    usr->keyConfig[42].slider_name = get_lang_string(ypaworld__string_pointers, 543, "JUMP TO LASTMSG-SENDER");
-    usr->keyConfig[43].slider_name = get_lang_string(ypaworld__string_pointers, 552, "MESSAGE TO ALL PLAYERS");
-    usr->keyConfig[44].slider_name = get_lang_string(ypaworld__string_pointers, 559, "HELP");
-    usr->keyConfig[45].slider_name = get_lang_string(ypaworld__string_pointers, 562, "SITUATION ANALYZER");
+    usr->InputConfigTitle[World::INPUT_BIND_PAUSE]       = get_lang_string(ypaworld__string_pointers, 544, "PAUSE");
+    usr->InputConfigTitle[World::INPUT_BIND_QUIT]        = get_lang_string(ypaworld__string_pointers, 536, "QUIT");
+    usr->InputConfigTitle[World::INPUT_BIND_DRIVE_DIR]   = get_lang_string(ypaworld__string_pointers, 500, "DRIVE DIR");
+    usr->InputConfigTitle[World::INPUT_BIND_DRIVE_SPEED] = get_lang_string(ypaworld__string_pointers, 501, "DRIVE SPEED");
+    usr->InputConfigTitle[World::INPUT_BIND_GUN_HEIGHT]  = get_lang_string(ypaworld__string_pointers, 511, "GUN HEIGHT");
+    usr->InputConfigTitle[World::INPUT_BIND_FLY_HEIGHT]  = get_lang_string(ypaworld__string_pointers, 502, "FLY HEIGHT");
+    usr->InputConfigTitle[World::INPUT_BIND_FLY_SPEED]   = get_lang_string(ypaworld__string_pointers, 503, "FLY SPEED");
+    usr->InputConfigTitle[World::INPUT_BIND_FLY_DIR]     = get_lang_string(ypaworld__string_pointers, 504, "FLY DIR");
+    usr->InputConfigTitle[World::INPUT_BIND_BRAKE]       = get_lang_string(ypaworld__string_pointers, 505, "STOP");
+    usr->InputConfigTitle[World::INPUT_BIND_FIRE]        = get_lang_string(ypaworld__string_pointers, 506, "FIRE");
+    usr->InputConfigTitle[World::INPUT_BIND_CAMFIRE]     = get_lang_string(ypaworld__string_pointers, 507, "FIRE VIEW");
+    usr->InputConfigTitle[World::INPUT_BIND_GUN]         = get_lang_string(ypaworld__string_pointers, 508, "FIRE GUN");
+    usr->InputConfigTitle[World::INPUT_BIND_SET_COMM]    = get_lang_string(ypaworld__string_pointers, 561, "MAKE CURRENT VEHICLE COMMANDER");
+    usr->InputConfigTitle[World::INPUT_BIND_HUD]         = get_lang_string(ypaworld__string_pointers, 541, "HEADUP DISPLAY");
+    usr->InputConfigTitle[World::INPUT_BIND_AUTOPILOT]   = get_lang_string(ypaworld__string_pointers, 520, "AUTOPILOT");
+    usr->InputConfigTitle[World::INPUT_BIND_ORDER]       = get_lang_string(ypaworld__string_pointers, 513, "ORDER");
+    usr->InputConfigTitle[World::INPUT_BIND_NEW]         = get_lang_string(ypaworld__string_pointers, 515, "NEW");
+    usr->InputConfigTitle[World::INPUT_BIND_ADD]         = get_lang_string(ypaworld__string_pointers, 516, "ADD");
+    usr->InputConfigTitle[World::INPUT_BIND_SQ_MANAGE]   = get_lang_string(ypaworld__string_pointers, 522, "FINDER");
+    usr->InputConfigTitle[World::INPUT_BIND_AGGR_1]      = get_lang_string(ypaworld__string_pointers, 553, "AGGR: COME BACK");
+    usr->InputConfigTitle[World::INPUT_BIND_AGGR_2]      = get_lang_string(ypaworld__string_pointers, 554, "AGGR: FIGHT TARGET");
+    usr->InputConfigTitle[World::INPUT_BIND_AGGR_3]      = get_lang_string(ypaworld__string_pointers, 555, "AGGR: FIGHT ENEMIES TOO");
+    usr->InputConfigTitle[World::INPUT_BIND_AGGR_4]      = get_lang_string(ypaworld__string_pointers, 556, "AGGR: CONQUER ALL ENEMY AREA TOO");
+    usr->InputConfigTitle[World::INPUT_BIND_AGGR_5]      = get_lang_string(ypaworld__string_pointers, 557, "AGGR: GO AMOK");
+    usr->InputConfigTitle[World::INPUT_BIND_MAP]         = get_lang_string(ypaworld__string_pointers, 521, "MAP");
+    usr->InputConfigTitle[World::INPUT_BIND_WAPOINT]     = get_lang_string(ypaworld__string_pointers, 558, "SELECT WAYPOINT");
+    usr->InputConfigTitle[World::INPUT_BIND_LANDLAYER]   = get_lang_string(ypaworld__string_pointers, 523, "LANDSCAPE");
+    usr->InputConfigTitle[World::INPUT_BIND_OWNER]       = get_lang_string(ypaworld__string_pointers, 524, "OWNER");
+    usr->InputConfigTitle[World::INPUT_BIND_HEIGHT]      = get_lang_string(ypaworld__string_pointers, 525, "HEIGHT");
+    usr->InputConfigTitle[World::INPUT_BIND_MINIMAP]     = get_lang_string(ypaworld__string_pointers, 531, "MAP MINI");
+    usr->InputConfigTitle[World::INPUT_BIND_LOCKVIEW]    = get_lang_string(ypaworld__string_pointers, 527, "LOCK VIEWER");
+    usr->InputConfigTitle[World::INPUT_BIND_ZOOMIN]      = get_lang_string(ypaworld__string_pointers, 529, "ZOOM IN");
+    usr->InputConfigTitle[World::INPUT_BIND_ZOOMOUT]     = get_lang_string(ypaworld__string_pointers, 530, "ZOOM OUT");
+    usr->InputConfigTitle[World::INPUT_BIND_LOG_WND]     = get_lang_string(ypaworld__string_pointers, 538, "LOGWIN");
+    usr->InputConfigTitle[World::INPUT_BIND_CONTROL]     = get_lang_string(ypaworld__string_pointers, 517, "CONTROL");
+    usr->InputConfigTitle[World::INPUT_BIND_LAST_SEAT]   = get_lang_string(ypaworld__string_pointers, 560, "GOTO LAST OCCUPIED VEHICLE");
+    usr->InputConfigTitle[World::INPUT_BIND_ATTACK]      = get_lang_string(ypaworld__string_pointers, 514, "FIGHT");
+    usr->InputConfigTitle[World::INPUT_BIND_TO_HOST]     = get_lang_string(ypaworld__string_pointers, 533, "TO ROBO");
+    usr->InputConfigTitle[World::INPUT_BIND_TO_COMM]     = get_lang_string(ypaworld__string_pointers, 535, "TO COMMANDER");
+    usr->InputConfigTitle[World::INPUT_BIND_NEXT_UNIT]   = get_lang_string(ypaworld__string_pointers, 534, "NEXT MAN");
+    usr->InputConfigTitle[World::INPUT_BIND_NEXT_COMM]   = get_lang_string(ypaworld__string_pointers, 532, "NEXT COM");
+    usr->InputConfigTitle[World::INPUT_BIND_LAST_MSG]    = get_lang_string(ypaworld__string_pointers, 543, "JUMP TO LASTMSG-SENDER");
+    usr->InputConfigTitle[World::INPUT_BIND_TO_ALL]      = get_lang_string(ypaworld__string_pointers, 552, "MESSAGE TO ALL PLAYERS");
+    usr->InputConfigTitle[World::INPUT_BIND_HELP]        = get_lang_string(ypaworld__string_pointers, 559, "HELP");
+    usr->InputConfigTitle[World::INPUT_BIND_ANALYZER]    = get_lang_string(ypaworld__string_pointers, 562, "SITUATION ANALYZER");
 
     int v259_4;
 
@@ -3723,13 +3316,11 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
     int v276 = v269;
     int v298 = (v278_4 - 2 * word_5A50C0) / 3;
 
-    IDVList init_vals;
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, 0);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, 0);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height);
-
-    usr->titel_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->titel_button = Nucleus::CInit<NC_STACK_button>( {
+        {NC_STACK_button::BTN_ATT_X, (int32_t)0},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)0},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)screen_width},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)screen_height} } );
     if ( !usr->titel_button )
     {
         ypa_log_out("Unable to create Titel-Button-Object\n");
@@ -3862,13 +3453,11 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
 
     dword_5A50B6_h = screen_width / 4 - 20;
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, 0);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, screen_height - font_default_h);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, font_default_h);
-
-    usr->sub_bar_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->sub_bar_button = Nucleus::CInit<NC_STACK_button>({ 
+        {NC_STACK_button::BTN_ATT_X, (int32_t)0},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)(screen_height - font_default_h)},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)screen_width},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)font_default_h}});
 
     if ( !usr->sub_bar_button )
     {
@@ -3977,13 +3566,12 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
 
     usr->sub_bar_button->Hide();
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, 0);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, 0);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height);
 
-    usr->confirm_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->confirm_button = Nucleus::CInit<NC_STACK_button>( {
+        {NC_STACK_button::BTN_ATT_X, (int32_t)0},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)0},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)screen_width},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)screen_height}} );
     if ( !usr->confirm_button )
     {
         ypa_log_out("Unable to create Confirm-Button-Object\n");
@@ -4088,13 +3676,12 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
     usr->field_D5A = v278;
     usr->field_0xd5c = v273;
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, usr->field_D5A);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, usr->field_0xd5c);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width - usr->field_D5A);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height - usr->field_0xd5c);
-
-    usr->button_input_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    
+    usr->button_input_button = Nucleus::CInit<NC_STACK_button>( {
+        {NC_STACK_button::BTN_ATT_X, (int32_t)usr->field_D5A},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)usr->field_0xd5c},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)(screen_width - usr->field_D5A)},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)(screen_height - usr->field_0xd5c)}});
     if ( !usr->button_input_button )
     {
         ypa_log_out("Unable to create Input-Button\n");
@@ -4394,13 +3981,11 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
     usr->field_13AA = v278;
     usr->field_0x13ac = v273;
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, usr->field_13AA);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, usr->field_0x13ac);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width - usr->field_13AA);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height - usr->field_0x13ac);
-
-    usr->video_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->video_button = Nucleus::CInit<NC_STACK_button>({
+        {NC_STACK_button::BTN_ATT_X, (int32_t)usr->field_13AA},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)usr->field_0x13ac},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)(screen_width - usr->field_13AA)},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)(screen_height - usr->field_0x13ac)}});
 
     if ( !usr->video_button )
     {
@@ -5102,13 +4687,11 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
     usr->field_0x175c = v278;
     usr->field_175E = v273;
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, usr->field_0x175c);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, usr->field_175E);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width - usr->field_0x175c);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height - usr->field_175E);
-
-    usr->disk_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->disk_button = Nucleus::CInit<NC_STACK_button>( {
+        {NC_STACK_button::BTN_ATT_X, (int32_t)usr->field_0x175c},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)usr->field_175E},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)(screen_width - usr->field_0x175c)},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)(screen_height - usr->field_175E)}} );
 
     if ( !usr->disk_button )
     {
@@ -5319,13 +4902,12 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
     usr->field_19C6 = v278;
     usr->field_0x19c8 = v273;
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, usr->field_19C6);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, usr->field_0x19c8);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width - usr->field_19C6);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height - usr->field_0x19c8);
 
-    usr->locale_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->locale_button = Nucleus::CInit<NC_STACK_button>( {
+        {NC_STACK_button::BTN_ATT_X, (int32_t)usr->field_19C6},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)usr->field_0x19c8},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)(screen_width - usr->field_19C6)},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)(screen_height - usr->field_0x19c8)}} );
 
     if ( !usr->locale_button )
     {
@@ -5445,13 +5027,11 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
     usr->field_19DE = 0;
     usr->field_0x19e0 = v273;
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, usr->field_19DE);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, usr->field_0x19e0);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width - usr->field_19DE);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height - usr->field_0x19e0);
-
-    usr->about_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->about_button = Nucleus::CInit<NC_STACK_button>( {
+        {NC_STACK_button::BTN_ATT_X, (int32_t)usr->field_19DE},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)usr->field_0x19e0},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)(screen_width - usr->field_19DE)},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)(screen_height - usr->field_0x19e0)}} );
 
     if ( !usr->about_button )
     {
@@ -5603,13 +5183,11 @@ size_t NC_STACK_ypaworld::ypaworld_func156(UserData *usr)
     usr->field_1C32 = v278;
     usr->field_0x1c34 = v273 - font_default_h;
 
-    init_vals.clear();
-    init_vals.Add(NC_STACK_button::BTN_ATT_X, usr->field_1C32);
-    init_vals.Add(NC_STACK_button::BTN_ATT_Y, usr->field_0x1c34);
-    init_vals.Add(NC_STACK_button::BTN_ATT_W, screen_width - usr->field_1C32);
-    init_vals.Add(NC_STACK_button::BTN_ATT_H, screen_height - usr->field_0x1c34);
-
-    usr->network_button = Nucleus::CInit<NC_STACK_button>(init_vals);
+    usr->network_button = Nucleus::CInit<NC_STACK_button>( {
+        {NC_STACK_button::BTN_ATT_X, (int32_t)usr->field_1C32},
+        {NC_STACK_button::BTN_ATT_Y, (int32_t)usr->field_0x1c34},
+        {NC_STACK_button::BTN_ATT_W, (int32_t)(screen_width - usr->field_1C32)},
+        {NC_STACK_button::BTN_ATT_H, (int32_t)(screen_height - usr->field_0x1c34)}});
     if ( !usr->network_button )
     {
         ypa_log_out("Unable to create network-buttonobject\n");
@@ -6252,42 +5830,27 @@ void NC_STACK_ypaworld::GameShellBkgProcess()
     }
 }
 
-
-char byte_5AFC10[64];
-
-char * sb_0x481264__sub0(NC_STACK_ypaworld *yw, int a2)
-{
-    byte_5AFC10[0] = 0;
-
-    if (  !yw->GameShell || Input::KeysInfo[a2]._title.empty() )
-        return NULL;
-
-    sprintf(byte_5AFC10, "[%s]", Input::KeysInfo[a2]._title.c_str());
-    return byte_5AFC10;
-}
-
 void draw_tooltip(NC_STACK_ypaworld *yw)
 {
-    if ( yw->field_17c0 || (yw->field_17c4 && !yw->field_1b1c) )
+    if ( yw->_mouseGrabbed || (yw->field_17c4 && !yw->field_1b1c) )
     {
         const char *tooltip = get_lang_string(yw->string_pointers_p2, yw->field_17c4 + 800, yw->tooltips[ yw->field_17c4 ]);
         int v15 = -(yw->font_default_h + yw->icon0___h + yw->font_default_h / 4);
-        char *v2 = NULL;
-        if ( yw->field_17c8 )
+        std::string v2;
+        
+        if ( yw->field_17c8 != -1 )
         {
             NC_STACK_input *inpt = INPe.getPInput();
 
-            idev_query_arg v11;
-            v11.keycode = 0;
-            v11.hotkey = yw->field_17c8;
+            int16_t keycode = inpt->GetHotKey(yw->field_17c8);
 
-            inpt->keyb_queryHotkey(&v11);
-
-            if ( v11.keycode )
+            if ( keycode != Input::KC_NONE )
             {
-                v2 = sb_0x481264__sub0(yw, v11.keycode);
-                if ( v2 )
+                if ( yw->GameShell && !NC_STACK_input::KeyTitle.at(keycode).empty())
+                {
+                    v2 = fmt::sprintf("[%s]", NC_STACK_input::KeyTitle.at(keycode));
                     v15 = -(yw->icon0___h + 2 * yw->font_default_h + yw->font_default_h / 4);
+                }
             }
         }
 
@@ -6299,11 +5862,11 @@ void draw_tooltip(NC_STACK_ypaworld *yw)
         FontUA::set_xpos(&pos, 0);
         FontUA::set_ypos(&pos, v15);
 
-        if ( v2 )
+        if ( !v2.empty() )
         {
             FontUA::set_txtColor(&pos, yw->iniColors[61].r, yw->iniColors[61].g, yw->iniColors[61].b);
 
-            pos = FontUA::FormateCenteredSkipableItem(yw->tiles[15], pos, v2, yw->screen_width);
+            pos = FontUA::FormateCenteredSkipableItem(yw->tiles[15], pos, v2.c_str(), yw->screen_width);
 
             FontUA::next_line(&pos);
         }
@@ -6321,38 +5884,33 @@ void draw_tooltip(NC_STACK_ypaworld *yw)
 
         yw->_win3d->raster_func209(&v10);
     }
-    yw->field_17c8 = 0;
+    yw->field_17c8 = -1;
     yw->field_17c4 = 0;
 }
 
 //Make screenshot
 void sub_4476AC(NC_STACK_ypaworld *yw)
 {
-    char a1a[256];
-    sprintf(a1a, "env:snaps/f_%04d", yw->field_2424);
-
-    yw->field_2424++;
-
     NC_STACK_win3d *w3d = GFXEngine::GFXe.getC3D();
 
-    const char *v7 = a1a;
-
-    w3d->display_func274(&v7);
+    w3d->SaveScreenshot(fmt::sprintf("env:snaps/f_%04d", yw->field_2424));
+    
+    yw->field_2424++;
 }
 
 //FIXME
 int PrevMouseX = 0;
 int PrevMouseY = 0;
 
-bool NC_STACK_ypaworld::IsAnyInput(struC5 *struc)
+bool NC_STACK_ypaworld::IsAnyInput(InputState *struc)
 {
     bool click = (struc->ClickInf.flag & ~ClickBoxInf::FLAG_OK);
-    bool mousemove = struc->ClickInf.move.screenPos.x != PrevMouseX || PrevMouseY != struc->ClickInf.move.screenPos.y;
+    bool mousemove = struc->ClickInf.move.ScreenPos.x != PrevMouseX || PrevMouseY != struc->ClickInf.move.ScreenPos.y;
 
-    PrevMouseX = struc->ClickInf.move.screenPos.x;
-    PrevMouseY = struc->ClickInf.move.screenPos.y;
+    PrevMouseX = struc->ClickInf.move.ScreenPos.x;
+    PrevMouseY = struc->ClickInf.move.ScreenPos.y;
 
-    return struc->downed_key_2 || struc->downed_key || struc->dword8 || click || mousemove;
+    return struc->KbdLastDown != Input::KC_NONE || struc->KbdLastHit != Input::KC_NONE || struc->HotKeyID >= 0 || click || mousemove;
 }
 
 void NC_STACK_ypaworld::ypaworld_func158(UserData *usr)
@@ -6414,7 +5972,7 @@ void NC_STACK_ypaworld::ypaworld_func158(UserData *usr)
 //    nullsub_7();
     }
 
-    if ( sub_449678(this, usr->_input, UAVK_MULTIPLY) )
+    if ( sub_449678(usr->_input, Input::KC_NUMMUL) )
         sub_4476AC(this);
 
     if ( usr->netSelMode == 4 )
@@ -6458,36 +6016,36 @@ size_t NC_STACK_ypaworld::ypaworld_func161(yw_arg161 *arg)
     int ok = 0;
     LevelDesc mapp;
 
-    if ( LVLoaderCommon(mapp, arg->lvlID, arg->field_4) )
+    if ( LevelCommonLoader(&mapp, arg->lvlID, arg->field_4) )
     {
-        if ( cells_mark_type(this, mapp.TypStr.c_str()) )
+        if ( LoadTypeMap(mapp.TypStr) )
         {
-            if ( cells_mark_owner(this, mapp.OwnStr.c_str()) )
+            if ( LoadOwnerMap( mapp.OwnStr) )
             {
-                if ( cells_mark_hight(this, mapp.HgtStr.c_str()) )
+                if ( LoadHightMap(mapp.HgtStr.c_str()) )
                 {
                     if ( yw_createRobos(mapp.Robos) )
                     {
-                        if ( sub_44B9B8(this, mapp.BlgStr.c_str()) )
+                        if ( LoadBlgMap(mapp.BlgStr) )
                         {
                             if ( _levelInfo->Mode != 1 )
                             {
                                 yw_InitSquads(mapp.Squads);
-                                yw_InitBuddies(this);
+                                InitBuddies();
 
-                                for (int yy = 0; yy < sectors_maxY2; yy++)
+                                for (int yy = 0; yy < _mapHeight; yy++)
                                 {
-                                    for (int xx = 0; xx < sectors_maxX2; xx++)
+                                    for (int xx = 0; xx < _mapWidth; xx++)
                                     {
-                                        cellArea *cell = &cells[xx + yy * sectors_maxX2];
-                                        sb_0x44fc60(this, cell, xx, yy, 255, NULL);
+                                        cellArea *cell = &_cells[xx + yy * _mapWidth];
+                                        CellCheckHealth(cell, xx, yy, 255, NULL);
                                     }
                                 }
 
                                 yw_InitTechUpgradeBuildings();
-                                yw_InitGates(this);
-                                yw_InitSuperItems(this);
-                                sub_44F748(this);
+                                InitGates();
+                                InitSuperItems();
+                                UpdatePowerEnergy();
                             }
 
                             if ( sb_0x451034(this) )
@@ -6502,7 +6060,7 @@ size_t NC_STACK_ypaworld::ypaworld_func161(yw_arg161 *arg)
     if ( !ok )
     {
         printf("Load level not OK\n");
-        ypaworld_func151();
+        DeleteLevel();
     }
 
     return ok;
@@ -6558,7 +6116,7 @@ size_t NC_STACK_ypaworld::ypaworld_func162(const char *fname)
     if ( !ypaworld_func161(&arg161) )
         return 0;
 
-    if ( !recorder_create_camera(this) )
+    if ( !recorder_create_camera() )
     {
         ypa_log_out("PLAYER ERROR: could not create virtual camera!\n");
         ypaworld_func164();
@@ -6569,7 +6127,7 @@ size_t NC_STACK_ypaworld::ypaworld_func162(const char *fname)
     repl->field_44 = vec3d(0.0, 0.0, 0.0);
     repl->rotation_matrix = mat3x3::Ident();
 
-    if ( !recorder_go_to_frame(this, repl, 0) )
+    if ( !recorder_go_to_frame(repl, 0) )
     {
         ypa_log_out("PLAYER ERROR: could not position on 1st frame!\n");
         ypaworld_func164();
@@ -6614,13 +6172,13 @@ void NC_STACK_ypaworld::ypaworld_func163(base_64arg *arg)
 
     _win3d->raster_func192(NULL);
 
-    sub_4C40AC(this);
+    sub_4C40AC();
 
     hudi.field_0 = 0;
     hudi.field_4 = 0;
 
     if ( repl->field_7C != 1 )
-        ypaworld_func163__sub1(this, repl, arg->DTime);
+        ypaworld_func163__sub1(repl, arg->DTime);
 
     CameraPrepareRender(repl, UserUnit, arg->field_8);
 
@@ -6628,21 +6186,17 @@ void NC_STACK_ypaworld::ypaworld_func163(base_64arg *arg)
 
     SFXEngine::SFXe.sub_423EFC(arg->DTime, UserUnit->_position, a3a, UserUnit->_rotation);
 
-    bact_node *bct = (bact_node *)UserUnit->_subjects_list.head;
-
-    while ( bct->next )
+    for ( NC_STACK_ypabact* &bct : UserUnit->_kidList )
     {
-        bct->bact->_tForm.locPos = bct->bact->_position;
+        bct->_tForm.locPos = bct->_position;
 
-        bct->bact->_tForm.locSclRot = bct->bact->_rotation.Transpose();
+        bct->_tForm.locSclRot = bct->_rotation.Transpose();
 
-        bct->bact->_soundcarrier.field_0 = bct->bact->_position;
+        bct->_soundcarrier.field_0 = bct->_position;
 
-        bct->bact->_soundcarrier.field_C = bct->bact->_fly_dir * bct->bact->_fly_dir_length;
+        bct->_soundcarrier.field_C = bct->_fly_dir * bct->_fly_dir_length;
 
-        SFXEngine::SFXe.sb_0x4242e0(&bct->bact->_soundcarrier);
-
-        bct = (bact_node *)bct->next;
+        SFXEngine::SFXe.sb_0x4242e0(&bct->_soundcarrier);
     }
 
     const mat3x3 &v25 = SFXEngine::SFXe.sb_0x424c74();
@@ -6654,7 +6208,7 @@ void NC_STACK_ypaworld::ypaworld_func163(base_64arg *arg)
 
     sb_0x4d7c08(this, arg, 0);
 
-    debug_info_draw(this, arg->field_8);
+    debug_info_draw(arg->field_8);
 
     _win3d->EndFrame();
 
@@ -6681,7 +6235,7 @@ void NC_STACK_ypaworld::ypaworld_func164()
             replayer->mfile = NULL;
         }
 
-        ypaworld_func151();
+        DeleteLevel();
 
         if ( replayer->oinf )
             nc_FreeMem(replayer->oinf);
@@ -6718,19 +6272,19 @@ void NC_STACK_ypaworld::ypaworld_func165(yw_arg165 *arg)
     }
     else if ( arg->field_0 == 3 )
     {
-        recorder_go_to_frame(this, repl, arg->frame);
+        recorder_go_to_frame(repl, arg->frame);
     }
     else if ( arg->field_0 == 4 )
     {
-        recorder_go_to_frame(this, repl, repl->frame_id + 1);
+        recorder_go_to_frame(repl, repl->frame_id + 1);
     }
     else if ( arg->field_0 == 5 )
     {
-        recorder_go_to_frame(this, repl, repl->frame_id - 1);
+        recorder_go_to_frame(repl, repl->frame_id - 1);
     }
     else if ( arg->field_0 == 7 )
     {
-        recorder_go_to_frame(this, repl, repl->frame_id + arg->frame);
+        recorder_go_to_frame(repl, repl->frame_id + arg->frame);
     }
     else if ( arg->field_0 == 16 || arg->field_0 == 17 )
     {
@@ -6777,7 +6331,7 @@ char * sb_0x471428__sub0(char *a1, const char *a2)
     return a1;
 }
 
-int simple_lang_parser(NC_STACK_ypaworld *yw, const char *filename)
+int simple_lang_parser(NC_STACK_ypaworld *yw, const std::string &filename)
 {
     FSMgr::FileHandle *fil = uaOpenFile(filename, "r");
     if ( !fil )
@@ -6906,10 +6460,9 @@ int simple_lang_parser(NC_STACK_ypaworld *yw, const char *filename)
     return 1;
 }
 
-int load_lang_lng(NC_STACK_ypaworld *yw, const char *lang)
+int load_lang_lng(NC_STACK_ypaworld *yw, const std::string &lang)
 {
-    char buf[128];
-    sprintf(buf, "locale:%s.lng", lang);
+    std::string buf = fmt::sprintf("locale:%s.lng", lang);
 
     if ( !simple_lang_parser(yw, buf) )
     {
@@ -7124,62 +6677,7 @@ size_t NC_STACK_ypaworld::ypaworld_func168(NC_STACK_ypabact *bact)
     return 1;
 }
 
-
-
-int ypaworld_func169__sub3(const char *a)
-{
-    FSMgr::FileHandle *fil = uaOpenFile(a, "r");
-
-    if ( !fil )
-        return 0;
-
-    delete fil;
-    return 1;
-}
-
-int get_lvlnum_from_save(const char *filename, int *lvlnum_out)
-{
-    FSMgr::FileHandle *fil = uaOpenFile(filename, "r");
-
-    if ( !fil )
-        return 0;
-
-    char v7[256];
-    while ( fil->gets(v7, 255) )
-    {
-        if ( !strnicmp(v7, "begin_levelnum", 14) )
-        {
-            while ( fil->gets(v7, 255) )
-            {
-                if ( !strnicmp(v7, "end", 3) )
-                    break; //Not found
-
-                char *v5 = strtok(v7, " \t");
-
-                if ( v5 )
-                {
-                    if ( !strnicmp(v5, "levelnum", 8) )
-                    {
-                        v5 = strtok(0, " \t=");
-
-                        if ( v5 )
-                        {
-                            *lvlnum_out = atoi(v5);
-                            delete fil;
-                            return 1;
-                        }
-                    }
-                }
-
-            }
-        }
-    }
-
-    delete fil;
-    return 0;
-}
-
-int NC_STACK_ypaworld::ypaworld_func169__sub1(const std::string &filename)
+int NC_STACK_ypaworld::LoadingParseSaveFile(const std::string &filename)
 {
     int lvlnum;
     ScriptParser::HandlersList parsers
@@ -7207,32 +6705,19 @@ int NC_STACK_ypaworld::ypaworld_func169__sub1(const std::string &filename)
     return ScriptParser::ParseFile(filename, parsers, ScriptParser::FLAG_NO_SCOPE_SKIP);
 }
 
-void NC_STACK_ypaworld::ypaworld_func169__sub2()
+void NC_STACK_ypaworld::LoadingUnitsRefresh()
 {
-    bact_node *station = (bact_node *)bact_list.head;
-
-    while(station->next)
+    for ( NC_STACK_ypabact* &station : _unitsList )
     {
-        sb_0x47b028(this, station->bact, station->bact, 1);
+        RefreshUnitPRT(station, station, true);
 
-        bact_node *commander = (bact_node *)station->bact->_subjects_list.head;
-
-        while (commander->next)
+        for ( NC_STACK_ypabact* &commander : station->_kidList )
         {
-            sb_0x47b028(this, commander->bact, station->bact, 0);
+            RefreshUnitPRT(commander, station, false);
 
-            bact_node *slave = (bact_node *)commander->bact->_subjects_list.head;
-            while (slave->next)
-            {
-                sb_0x47b028(this, slave->bact, station->bact, 0);
-
-                slave = (bact_node *)slave->next;
-            }
-
-            commander = (bact_node *)commander->next;
+            for ( NC_STACK_ypabact* &slave : commander->_kidList )
+                RefreshUnitPRT(slave, station, false);
         }
-
-        station = (bact_node *)station->next;
     }
 
     if ( _extraViewEnable )
@@ -7247,48 +6732,51 @@ void NC_STACK_ypaworld::ypaworld_func169__sub2()
     }
 }
 
-size_t NC_STACK_ypaworld::ypaworld_func169(yw_arg169 *arg)
+size_t NC_STACK_ypaworld::LoadGame(const std::string &saveFile)
 {
-    int v5 = 0;
+    bool loadOK = false;
 
-    if ( !ypaworld_func169__sub3(arg->saveFile) )
+    if ( !uaFileExist(saveFile) )
         return 1;
 
-    if ( strstr(arg->saveFile, ".SGM") || strstr(arg->saveFile, ".sgm") )
+    if ( saveFile.find(".sgm") != std::string::npos || saveFile.find(".SGM") != std::string::npos )
     {
         _maxReloadConst = 0;
         _maxRoboEnergy = 0;
     }
 
-    char save_filename[300];
-    sprintf(save_filename, "%s", arg->saveFile);
-
     int lvlnum;
-    get_lvlnum_from_save(save_filename, &lvlnum);
+    
+    ScriptParser::HandlersList parsers
+    {
+        new World::Parsers::SaveLevelNumParser(this, &lvlnum),
+    };
+
+    ScriptParser::ParseFile(saveFile, parsers, 0);
 
     _extraViewNumber = -1;
     _extraViewEnable = false;
 
     LevelDesc mapp;
 
-    if ( LVLoaderCommon(mapp, lvlnum, 0) )
+    if ( LevelCommonLoader(&mapp, lvlnum, 0) )
     {
-        if ( cells_mark_type(this, mapp.TypStr.c_str()) )
+        if ( LoadTypeMap(mapp.TypStr) )
         {
-            if ( cells_mark_owner(this, mapp.OwnStr.c_str()) )
+            if ( LoadOwnerMap(mapp.OwnStr) )
             {
-                if ( cells_mark_hight(this, mapp.HgtStr.c_str()) )
+                if ( LoadHightMap(mapp.HgtStr) )
                 {
-                    if ( sub_44B9B8(this, mapp.BlgStr.c_str()) )
-                        v5 = 1;
+                    if ( LoadBlgMap(mapp.BlgStr) )
+                        loadOK = true;
                 }
             }
         }
     }
 
-    if ( !v5 )
+    if ( !loadOK )
     {
-        ypaworld_func151();
+        DeleteLevel();
         return 0;
     }
 
@@ -7298,7 +6786,7 @@ size_t NC_STACK_ypaworld::ypaworld_func169(yw_arg169 *arg)
     bact_id = 0x10000;
     dword_5A7A80 = 0;
 
-    yw_InitSuperItems(this);
+    InitSuperItems();
 
     if ( copyof_typemap )
     {
@@ -7318,7 +6806,7 @@ size_t NC_STACK_ypaworld::ypaworld_func169(yw_arg169 *arg)
     if ( own_map )
         copyof_ownermap = own_map->Copy();
 
-    if ( !ypaworld_func169__sub1(save_filename) )
+    if ( !LoadingParseSaveFile(saveFile) )
         return 0;
 
     dword_5A7A80++;
@@ -7327,22 +6815,22 @@ size_t NC_STACK_ypaworld::ypaworld_func169(yw_arg169 *arg)
     if ( UserRobo )
         dynamic_cast<NC_STACK_yparobo *>(UserRobo) ->setROBO_commCount(dword_5A7A80);
 
-    ypaworld_func169__sub2();
+    LoadingUnitsRefresh();
 
-    if ( strstr(arg->saveFile, ".fin") || strstr(arg->saveFile, ".FIN") )
-        yw_InitBuddies(this);
+    if ( saveFile.find(".fin") != std::string::npos || saveFile.find(".FIN") != std::string::npos )
+        InitBuddies();
 
-    for(int y = 0; y < sectors_maxY2; y++)
+    for(int y = 0; y < _mapHeight; y++)
     {
-        for(int x = 0; x < sectors_maxX2; x++)
+        for(int x = 0; x < _mapWidth; x++)
         {
-            cellArea *cell = &cells[x + y * sectors_maxX2];
-            sb_0x44fc60(this, cell, x, y, 255, 0);
+            cellArea *cell = &_cells[x + y * _mapWidth];
+            CellCheckHealth(cell, x, y, 255, NULL);
         }
     }
 
-    yw_InitGates(this);
-    sub_44F748(this);
+    InitGates();
+    UpdatePowerEnergy();
 
     if ( !sb_0x451034(this) )
         return 0;
@@ -7351,22 +6839,18 @@ size_t NC_STACK_ypaworld::ypaworld_func169(yw_arg169 *arg)
 }
 
 
-size_t NC_STACK_ypaworld::ypaworld_func170(yw_arg169 *arg)
+size_t NC_STACK_ypaworld::SaveGame(const std::string &saveFile)
 {
-    int write_ok = 1;
+    bool write_ok = true;
 
-    if ( strstr(arg->saveFile, ".sgm") || strstr(arg->saveFile, ".SGM") )
-    {
-        char flname[300];
-        sprintf(flname, "save:%s/sgisold.txt", GameShell->user_name.c_str());
-        uaDeleteFile(flname);
-    }
+    if ( saveFile.find(".sgm") != std::string::npos || saveFile.find(".SGM") != std::string::npos )
+        uaDeleteFile( fmt::sprintf("save:%s/sgisold.txt", GameShell->user_name) );
 
     int write_modifers;
     int write_user;
     int write_level_statuses;
 
-    bool isfin_save = strstr(arg->saveFile, ".fin") || strstr(arg->saveFile, ".FIN");
+    bool isfin_save = saveFile.find(".fin") != std::string::npos || saveFile.find(".FIN") != std::string::npos;
 
     if ( isfin_save )
     {
@@ -7382,11 +6866,12 @@ size_t NC_STACK_ypaworld::ypaworld_func170(yw_arg169 *arg)
         write_modifers = 1;
         write_user = 1;
     }
+    
+    // Force to write last frame timestamp into history
+    if (_historyLastIsTimeStamp)
+        _history.Write( _historyLastFrame.MakeByteArray() );
 
-    char filename[300];
-    sprintf(filename, "%s", arg->saveFile);
-
-    FSMgr::FileHandle *fil = uaOpenFile(filename, "w");
+    FSMgr::FileHandle *fil = uaOpenFile( saveFile, "w");
 
     if ( !fil )
     {
@@ -7397,13 +6882,13 @@ size_t NC_STACK_ypaworld::ypaworld_func170(yw_arg169 *arg)
     if ( write_modifers )
     {
         if ( !yw_write_item_modifers(this, fil) )
-            write_ok = 0;
+            write_ok = false;
     }
 
     if ( write_user )
     {
         if ( !yw_write_user(fil, GameShell) )
-            write_ok = 0;
+            write_ok = false;
     }
 
     if ( write_ok )
@@ -7414,7 +6899,7 @@ size_t NC_STACK_ypaworld::ypaworld_func170(yw_arg169 *arg)
             yw_write_buildmap(this, fil);
             yw_write_energymap(this, fil);
 
-            if ( yw_write_units(this, fil) )
+            if ( yw_write_units(fil) )
             {
                 if ( yw_write_wunderinfo(this, fil) )
                 {
@@ -7423,7 +6908,7 @@ size_t NC_STACK_ypaworld::ypaworld_func170(yw_arg169 *arg)
                         if ( yw_write_globals(this, fil) )
                         {
                             if ( yw_write_superbomb(this, fil) )
-                                write_ok = 1;
+                                write_ok = true;
                         }
                     }
                 }
@@ -7439,7 +6924,7 @@ size_t NC_STACK_ypaworld::ypaworld_func170(yw_arg169 *arg)
             {
                 if ( !yw_write_level_status(fil, this, i) )
                 {
-                    write_ok = 0;
+                    write_ok = false;
                     break;
                 }
             }
@@ -7471,10 +6956,7 @@ size_t NC_STACK_ypaworld::ypaworld_func171(yw_arg172 *arg)
         return 0;
     }
 
-    char a1a[300];
-    sprintf(a1a, "save:%s", arg->usertxt);
-
-    FSMgr::FileHandle *sfil = uaOpenFile(a1a, "w");
+    FSMgr::FileHandle *sfil = uaOpenFile(fmt::sprintf("save:%s", arg->usertxt), "w");
 
     if ( !sfil )
         return 1;
@@ -7578,8 +7060,6 @@ int NC_STACK_ypaworld::ypaworld_func172__sub0(const std::string &fname, int pars
 // Load user save
 size_t NC_STACK_ypaworld::ypaworld_func172(yw_arg172 *arg)
 {
-    char a1a[300];
-
     UserData *usr = arg->usr;
 
     if ( arg->field_8 & 0x10 )
@@ -7590,11 +7070,11 @@ size_t NC_STACK_ypaworld::ypaworld_func172(yw_arg172 *arg)
         }
         else
         {
-            sprintf(a1a, "%s/user.txt", usr->user_name.c_str());
+            std::string tmpStr = fmt::sprintf("%s/user.txt", usr->user_name);
 
             yw_arg172 v12;
             v12.usr = usr;
-            v12.usertxt = a1a;
+            v12.usertxt = tmpStr.c_str();
             v12.field_10 = 0;
             v12.field_4 = usr->user_name.c_str();
             v12.field_8 = 255;
@@ -7608,10 +7088,7 @@ size_t NC_STACK_ypaworld::ypaworld_func172(yw_arg172 *arg)
     if ( arg->field_8 & 0x80 )
         _levelInfo->Buddies.clear();
 
-    char buf[300];
-    sprintf(buf, "save:%s", arg->usertxt);
-
-    if ( !ypaworld_func172__sub0(buf, arg->field_8) )
+    if ( !ypaworld_func172__sub0(fmt::sprintf("save:%s", arg->usertxt), arg->field_8) )
     {
         ypa_log_out("Error while loading information from %s\n", arg->usertxt);
         return 0;
@@ -7629,7 +7106,7 @@ size_t NC_STACK_ypaworld::ypaworld_func172(yw_arg172 *arg)
     }
 
     if ( arg->field_8 & 2 )
-        usr->sub_457BC0();
+        usr->InputConfCopyToBackup();
 
     if ( arg->field_10 & 1 )
         ypaworld_func167(usr); // Update menu values
@@ -7640,64 +7117,59 @@ size_t NC_STACK_ypaworld::ypaworld_func172(yw_arg172 *arg)
 
 size_t NC_STACK_ypaworld::ypaworld_func173(UserData *usr)
 {
-    char v28[500];
-    memset(v28, 0, 500);
+    std::string keyConfStr;
 
-    if ( usr->field_D36 < 1 || usr->field_D36 > 45 )
+    if ( usr->field_D36 < 1 || usr->field_D36 >= usr->InputConfig.size() )
         return 0;
 
-    inp_key_setting *v5 = &usr->keyConfig[usr->field_D36];
+    UserData::TInputConf &kconf = usr->InputConfig.at(usr->field_D36);
 
-    if ( Input::KeysInfo[v5->field_10]._name.empty() )
+    if ( NC_STACK_input::KeyNamesTable.at(kconf.PKeyCode).Name.empty() )
         return 0;
 
-    if ( v5->inp_type == World::KEYC_TYPE_SLIDER && Input::KeysInfo[v5->slider_neg]._name.empty() )
+    if ( kconf.Type == World::INPUT_BIND_TYPE_SLIDER && NC_STACK_input::KeyNamesTable.at(kconf.NKeyCode).Name.empty() )
         return 0;
 
-    if ( v5->inp_type == World::KEYC_TYPE_SLIDER )
+    if ( kconf.Type == World::INPUT_BIND_TYPE_SLIDER )
     {
-        strcpy(v28, "~#");
-        strcat(v28, "winp:");
-        strcat(v28, Input::KeysInfo[v5->slider_neg]._name.c_str());
-        strcat(v28, " #");
-        strcat(v28, "winp:");
+        keyConfStr += "~#";
+        keyConfStr += "winp:";
+        keyConfStr += NC_STACK_input::KeyNamesTable.at(kconf.NKeyCode).Name;
+        keyConfStr += " #";
+        keyConfStr += "winp:";
     }
-    else if ( v5->inp_type == World::KEYC_TYPE_BUTTON )
+    else if ( kconf.Type == World::INPUT_BIND_TYPE_BUTTON )
     {
-        strcpy(v28, "winp:");
+        keyConfStr += "winp:";
     }
 
-    if ( Input::KeysInfo[ v5->KeyCode ]._name.empty() )
+    if ( NC_STACK_input::KeyNamesTable.at(kconf.PKeyCode).Name.empty() )
         return 0;
 
-    strcat(v28, Input::KeysInfo[ v5->KeyCode ]._name.c_str());
+    keyConfStr += NC_STACK_input::KeyNamesTable.at(kconf.PKeyCode).Name;
 
     NC_STACK_input *v38 = INPe.getPInput();
 
-    if ( v5->inp_type == World::KEYC_TYPE_HOTKEY )
+    if ( kconf.Type == World::INPUT_BIND_TYPE_HOTKEY )
     {
-        winp_68arg v33;
-        v33.keyname = v28;
-        v33.id = v5->keyID;
-
-        if ( !v38->keyb_setHotkey(&v33) )
-            ypa_log_out("input.engine: WARNING: Hotkey[%d] (%s) not accepted.\n", v5->keyID, v33.keyname);
+        if ( !v38->SetHotKey(kconf.KeyID, keyConfStr) )
+            ypa_log_out("input.engine: WARNING: Hotkey[%d] (%s) not accepted.\n", kconf.KeyID, keyConfStr.c_str());
     }
     else
     {
-        if ( v5->inp_type == World::KEYC_TYPE_BUTTON )
+        if ( kconf.Type == World::INPUT_BIND_TYPE_BUTTON )
         {
-            if ( !v38->input_func64(Input::ITYPE_BUTTON, v5->keyID, v28) )
-                ypa_log_out("input.engine: WARNING: Button[%d] (%s) not accepted.\n", v5->keyID, v28);
+            if ( !v38->SetInputExpression(false, kconf.KeyID, keyConfStr) )
+                ypa_log_out("input.engine: WARNING: Button[%d] (%s) not accepted.\n", kconf.KeyID, keyConfStr.c_str());
         }
         else
         {
-            if ( !v38->input_func64(Input::ITYPE_SLIDER, v5->keyID, v28) )
-                ypa_log_out("input.engine: WARNING: Slider[%d] (%s) not accepted.\n", v5->keyID, v28);
+            if ( !v38->SetInputExpression(true, kconf.KeyID, keyConfStr) )
+                ypa_log_out("input.engine: WARNING: Slider[%d] (%s) not accepted.\n", kconf.KeyID, keyConfStr.c_str());
         }
     }
-    v5->field_A = v5->slider_neg;
-    v5->field_8 = v5->KeyCode;
+    kconf.NKeyCodeBkp = kconf.NKeyCode;
+    kconf.PKeyCodeBkp = kconf.PKeyCode;
     return 1;
 }
 
@@ -7830,24 +7302,20 @@ void NC_STACK_ypaworld::ypaworld_func177(yw_arg177 *arg)
             beamenergy += beam_energy_add;
     }
 
-    bact_node *v6 = (bact_node *)bact_list.head;
-
-    while ( v6->next )
+    for ( NC_STACK_ypabact* &unit : _unitsList )
     {
-        if ( v6->bact->_bact_type == BACT_TYPES_ROBO && v6->bact != arg->bact && arg->bact->_owner == v6->bact->_owner )
+        if ( unit->_bact_type == BACT_TYPES_ROBO && unit != arg->bact && arg->bact->_owner == unit->_owner )
             return;
-
-        v6 = (bact_node *)v6->next;
     }
 
-    for (int i = 0; i < sectors_maxY2; i++)
+    for (int i = 0; i < _mapHeight; i++)
     {
-        for (int j = 0; j < sectors_maxX2; j++)
+        for (int j = 0; j < _mapWidth; j++)
         {
-            cellArea *v9 = cells + sectors_maxX2 * i + j;
+            cellArea *v9 = _cells + _mapWidth * i + j;
 
             if ( v9->owner == arg->bact->_owner )
-                sub_44F958(this, v9, j, i, arg->field_4);
+                CellSetOwner(v9, j, i, arg->field_4);
         }
     }
 
@@ -7857,11 +7325,11 @@ void NC_STACK_ypaworld::ypaworld_func177(yw_arg177 *arg)
     if ( UserRobo->_owner != arg->field_4 )
         return;
 
-    for (int i = 0; i < sectors_maxY2; i++)
+    for (int i = 0; i < _mapHeight; i++)
     {
-        for (int j = 0; j < sectors_maxX2; j++)
+        for (int j = 0; j < _mapWidth; j++)
         {
-            cellArea *v15 = cells + sectors_maxX2 * i + j;
+            cellArea *v15 = _cells + _mapWidth * i + j;
 
             if ( v15->w_type == 4 && v15->owner == UserRobo->_owner )
             {
@@ -7871,7 +7339,7 @@ void NC_STACK_ypaworld::ypaworld_func177(yw_arg177 *arg)
                 else
                     yw_ActivateWunderstein(v15, v15->w_id);
                 
-                ypaworld_func184( World::History::Upgrade(j, i, v15->owner, _Gems[ field_2b78 ].Type, last_modify_vhcl, last_modify_weapon, last_modify_build) );
+                HistoryEventAdd( World::History::Upgrade(j, i, v15->owner, _Gems[ field_2b78 ].Type, last_modify_vhcl, last_modify_weapon, last_modify_build) );
             }
 
         }
@@ -7889,88 +7357,46 @@ void NC_STACK_ypaworld::ypaworld_func180(yw_arg180 *arg)
             return;
     }
 
-    winp_71arg arg71;
-
     switch ( arg->effects_type )
     {
     case 0:
-        arg71.state = NC_STACK_winp::FF_STATE_START;
-        arg71.p4 = 0;
-        arg71.p3 = 0;
-        arg71.p2 = 0;
-        arg71.p1 = 0;
-        arg71.effID = NC_STACK_winp::FF_TYPE_MISSILEFIRE;
-
         if ( input_class )
-            input_class->wimp_ForceFeedback(&arg71);
+            input_class->ForceFeedback(NC_STACK_winp::FF_STATE_START, NC_STACK_winp::FF_TYPE_MISSILEFIRE);
 
         break;
 
     case 1:
-        arg71.state = NC_STACK_winp::FF_STATE_START;
-        arg71.p4 = 0;
-        arg71.p3 = 0;
-        arg71.p2 = 0;
-        arg71.p1 = 0;
-        arg71.effID = NC_STACK_winp::FF_TYPE_GRENADEFIRE;
-
         if ( input_class )
-            input_class->wimp_ForceFeedback(&arg71);
+            input_class->ForceFeedback(NC_STACK_winp::FF_STATE_START, NC_STACK_winp::FF_TYPE_GRENADEFIRE);
 
         break;
 
     case 2:
-        arg71.state = NC_STACK_winp::FF_STATE_START;
-        arg71.p4 = 0;
-        arg71.p3 = 0;
-        arg71.p2 = 0;
-        arg71.p1 = 0;
-        arg71.effID = NC_STACK_winp::FF_TYPE_BOMBFIRE;
-
         if ( input_class )
-            input_class->wimp_ForceFeedback(&arg71);
+            input_class->ForceFeedback(NC_STACK_winp::FF_STATE_START, NC_STACK_winp::FF_TYPE_BOMBFIRE);
 
         break;
 
     case 3:
-        arg71.state = NC_STACK_winp::FF_STATE_START;
-        arg71.p4 = 0;
-        arg71.p3 = 0;
-        arg71.p2 = 0;
-        arg71.p1 = 0;
-        arg71.effID = NC_STACK_winp::FF_TYPE_MINIGUN;
-
         if ( input_class )
-            input_class->wimp_ForceFeedback(&arg71);
+            input_class->ForceFeedback(NC_STACK_winp::FF_STATE_START, NC_STACK_winp::FF_TYPE_MINIGUN);
 
         break;
 
     case 4:
-        arg71.state = NC_STACK_winp::FF_STATE_STOP;
-        arg71.p4 = 0;
-        arg71.p3 = 0;
-        arg71.p2 = 0;
-        arg71.p1 = 0;
-        arg71.effID = NC_STACK_winp::FF_TYPE_MINIGUN;
-
         if ( input_class )
-            input_class->wimp_ForceFeedback(&arg71);
+            input_class->ForceFeedback(NC_STACK_winp::FF_STATE_STOP, NC_STACK_winp::FF_TYPE_MINIGUN);
 
         break;
 
     case 5:
     {
         NC_STACK_ypabact *bct = UserUnit;
-
-        arg71.effID = NC_STACK_winp::FF_TYPE_COLLISION;
-        arg71.state = NC_STACK_winp::FF_STATE_START;
-        arg71.p1 = arg->field_4;
-        arg71.p2 = 0;
-        arg71.p3 = (arg->field_C - bct->_position.z) * bct->_rotation.m02 + (arg->field_8 - bct->_position.x) * bct->_rotation.m00;
-        arg71.p4 = -((arg->field_8 - bct->_position.x) * bct->_rotation.m20 + (arg->field_C - bct->_position.z) * bct->_rotation.m22);
-
         if ( input_class )
-            input_class->wimp_ForceFeedback(&arg71);
+            input_class->ForceFeedback(NC_STACK_winp::FF_STATE_START, NC_STACK_winp::FF_TYPE_COLLISION,
+            arg->field_4, 0.0,
+            (arg->field_C - bct->_position.z) * bct->_rotation.m02 + (arg->field_8 - bct->_position.x) * bct->_rotation.m00,
+            -((arg->field_8 - bct->_position.x) * bct->_rotation.m20 + (arg->field_C - bct->_position.z) * bct->_rotation.m22));
 
     }
     break;
@@ -7995,11 +7421,7 @@ void NC_STACK_ypaworld::ypaworld_func182(void *arg)
 
 int ypaworld_func183__sub0(int lvlID, const char *userName)
 {
-    char buf[300];
-
-    sprintf(buf, "save:%s/%d.fin", userName, lvlID);
-
-    FSMgr::FileHandle *fil = uaOpenFile(buf, "r");
+    FSMgr::FileHandle *fil = uaOpenFile( fmt::sprintf("save:%s/%d.fin", userName, lvlID) , "r");
 
     if ( !fil )
         return 0;
@@ -8011,22 +7433,15 @@ int ypaworld_func183__sub0(int lvlID, const char *userName)
 // Advanced Create Level
 size_t NC_STACK_ypaworld::ypaworld_func183(yw_arg161 *arg)
 {
-    char buf[128];
-
     int v6;
 
     if ( LevelNet->mapInfos[ arg->lvlID ].field_0 == 3 && ypaworld_func183__sub0(arg->lvlID, GameShell->user_name.c_str()) )
     {
-        sprintf(buf, "save:%s/%d.fin", GameShell->user_name.c_str(), arg->lvlID);
-
-        yw_arg169 v11;
-        v11.saveFile = buf;
-        v11.usr = GameShell;
-
-        v6 = ypaworld_func169(&v11);
+        std::string savename = fmt::sprintf("save:%s/%d.fin", GameShell->user_name, arg->lvlID);
+        v6 = LoadGame(savename);
 
         if ( !v6 )
-            ypa_log_out("Warning: in YWM_ADVANCEDCREATELEVEL: YWM_LOADGAME of %s failed!\n", buf);
+            ypa_log_out("Warning: in YWM_ADVANCEDCREATELEVEL: YWM_LOADGAME of %s failed!\n", savename.c_str());
 
         UserRobo->_energy = UserRobo->_energy_max;
 
@@ -8043,13 +7458,7 @@ size_t NC_STACK_ypaworld::ypaworld_func183(yw_arg161 *arg)
 
     if ( v6 )
     {
-        yw_arg169 v11;
-        v11.usr = GameShell;
-        v11.saveFile = buf;
-
-        sprintf(buf, "save:%s/%d.rst", GameShell->user_name.c_str(), _levelInfo->LevelID);
-
-        if ( !ypaworld_func170(&v11) )
+        if ( !SaveGame(fmt::sprintf("save:%s/%d.rst", GameShell->user_name, _levelInfo->LevelID)) )
             ypa_log_out("Warning: could not create restart file for level %d, user %s.\n", _levelInfo->LevelID, GameShell->user_name.c_str());
     }
 
@@ -8075,7 +7484,7 @@ size_t NC_STACK_ypaworld::ypaworld_func183(yw_arg161 *arg)
 }
 
 
-void NC_STACK_ypaworld::ypaworld_func184(const World::History::Record &arg)
+void NC_STACK_ypaworld::HistoryEventAdd(const World::History::Record &arg)
 {
     switch ( arg.type )
     {
@@ -8090,7 +7499,7 @@ void NC_STACK_ypaworld::ypaworld_func184(const World::History::Record &arg)
     case World::History::TYPE_POWERST:
     case World::History::TYPE_UPGRADE:
         
-        if (_historyLastIsTimeStamp) // If 
+        if (_historyLastIsTimeStamp) // If
             _history.Write(_historyLastFrame.MakeByteArray());
             
         _history.Write(arg.MakeByteArray());
@@ -8158,7 +7567,7 @@ void NC_STACK_ypaworld::setYW_visSectors(int visSectors)
 void NC_STACK_ypaworld::setYW_userHostStation(NC_STACK_ypabact *host)
 {
     UserRobo = host;
-    field_1b88 = &UserRobo->_subjects_list;
+    _UserRoboKidsList = &UserRobo->_kidList;
 }
 
 void NC_STACK_ypaworld::setYW_userVehicle(NC_STACK_ypabact *bact)
@@ -8209,22 +7618,22 @@ void NC_STACK_ypaworld::setYW_dontRender(int drndr)
 
 int NC_STACK_ypaworld::getYW_mapMaxX()
 {
-    return sectors_maxX;
+    return _mapAbsMaxX;
 }
 
 int NC_STACK_ypaworld::getYW_mapMaxY()
 {
-    return sectors_maxY;
+    return _mapAbsMaxY;
 }
 
 int NC_STACK_ypaworld::getYW_mapSizeX()
 {
-    return sectors_maxX2;
+    return _mapWidth;
 }
 
 int NC_STACK_ypaworld::getYW_mapSizeY()
 {
-    return sectors_maxY2;
+    return _mapHeight;
 }
 
 int NC_STACK_ypaworld::getYW_normVisLimit()
@@ -8272,7 +7681,7 @@ WeapProto *NC_STACK_ypaworld::getYW_weaponProtos()
     return WeaponProtos;
 }
 
-BuildProto *NC_STACK_ypaworld::getYW_buildProtos()
+TBuildingProto *NC_STACK_ypaworld::getYW_buildProtos()
 {
     return BuildProtos.data();
 }
@@ -8417,167 +7826,4 @@ void NC_STACK_ypaworld::LoadGuiFonts()
     Gui::UA::_UATiles[Gui::UA::TILESET_MAPVERT1]    = yw_LoadFont("mapvert1.font"); //13
 
     SetPathKeys("rsrc", old);    
-}
-
-
-size_t NC_STACK_ypaworld::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        func1();
-        return 1;
-    case 2:
-        func2( *(IDVList *)data );
-        return 1;
-    case 3:
-        func3( *(IDVList *)data );
-        return 1;
-    case 64:
-        base_func64( (base_64arg *)data );
-        return 1;
-    case 129:
-        ypaworld_func129( (yw_arg129 *)data );
-        return 1;
-    case 130:
-        return (size_t)ypaworld_func130( (yw_130arg *)data );
-    case 131:
-        ypaworld_func131( (NC_STACK_ypabact *)data );
-        return 1;
-    case 132:
-        ypaworld_func132( (void *)data );
-        return 1;
-    case 133:
-        ypaworld_func133( (void *)data );
-        return 1;
-    case 134:
-        ypaworld_func134( (NC_STACK_ypabact *)data );
-        return 1;
-    case 135:
-        ypaworld_func135( (void *)data );
-        return 1;
-    case 136:
-        ypaworld_func136( (ypaworld_arg136 *)data );
-        return 1;
-    case 137:
-        ypaworld_func137( (ypaworld_arg137 *)data );
-        return 1;
-    case 138:
-        ypaworld_func138( (void *)data );
-        return 1;
-    case 139:
-        ypaworld_func139( (GuiBase *)data );
-        return 1;
-    case 140:
-        ypaworld_func140( (GuiBase *)data );
-        return 1;
-    case 143:
-        ypaworld_func143( (void *)data );
-        return 1;
-    case 144:
-        ypaworld_func144( (NC_STACK_ypabact *)data );
-        return 1;
-    case 145:
-        return (size_t)ypaworld_func145( (NC_STACK_ypabact *)data );
-    case 146:
-        return (size_t)ypaworld_func146( (ypaworld_arg146 *)data );
-    case 147:
-        return (size_t)ypaworld_func147( (ypaworld_arg146 *)data );
-    case 148:
-        return (size_t)ypaworld_func148( (ypaworld_arg148 *)data );
-    case 149:
-        ypaworld_func149( (ypaworld_arg136 *)data );
-        return 1;
-    case 150:
-        ypaworld_func150( (yw_arg150 *)data );
-        return 1;
-    case 151:
-        ypaworld_func151();
-        return 1;
-    case 153:
-        ypaworld_func153( (bact_hudi *)data );
-        return 1;
-    case 154:
-        return (size_t)ypaworld_func154( (UserData *)data );
-    case 155:
-        ypaworld_func155( (UserData *)data );
-        return 1;
-    case 156:
-        return (size_t)ypaworld_func156( (UserData *)data );
-    case 157:
-        ypaworld_func157( (UserData *)data );
-        return 1;
-    case 158:
-        ypaworld_func158( (UserData *)data );
-        return 1;
-    case 159:
-        ypaworld_func159( (yw_arg159 *)data );
-        return 1;
-    case 160:
-        ypaworld_func160( (void *)data );
-        return 1;
-    case 161:
-        return (size_t)ypaworld_func161( (yw_arg161 *)data );
-    case 162:
-        return (size_t)ypaworld_func162( (const char *)data );
-    case 163:
-        ypaworld_func163( (base_64arg *)data );
-        return 1;
-    case 164:
-        ypaworld_func164();
-        return 1;
-    case 165:
-        ypaworld_func165( (yw_arg165 *)data );
-        return 1;
-    case 166:
-        return (size_t)ypaworld_func166( (const char **)data );
-    case 167:
-        ypaworld_func167( (UserData *)data );
-        return 1;
-    case 168:
-        return (size_t)ypaworld_func168( (NC_STACK_ypabact *)data );
-    case 169:
-        return (size_t)ypaworld_func169( (yw_arg169 *)data );
-    case 170:
-        return (size_t)ypaworld_func170( (yw_arg169 *)data );
-    case 171:
-        return (size_t)ypaworld_func171( (yw_arg172 *)data );
-    case 172:
-        return (size_t)ypaworld_func172( (yw_arg172 *)data );
-    case 173:
-        return (size_t)ypaworld_func173( (UserData *)data );
-    case 174:
-        return (size_t)ypaworld_func174( (yw_174arg *)data );
-    case 175:
-        return (size_t)ypaworld_func175( (UserData *)data );
-    case 176:
-        ypaworld_func176( (yw_arg176 *)data );
-        return 1;
-    case 177:
-        ypaworld_func177( (yw_arg177 *)data );
-        return 1;
-    case 179:
-        return ypaworld_func179( (yw_arg161 *)data );
-    case 180:
-        ypaworld_func180( (yw_arg180 *)data );
-        return 1;
-    case 181:
-        ypaworld_func181( (void *)data );
-        return 1;
-    case 182:
-        ypaworld_func182( (void *)data );
-        return 1;
-    case 183:
-        return (size_t)ypaworld_func183( (yw_arg161 *)data );
-    case 184:
-        return 1;
-    case 185:
-        ypaworld_func185( (void *)data );
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_nucleus::compatcall(method_id, data);
 }

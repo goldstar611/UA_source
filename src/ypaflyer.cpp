@@ -15,16 +15,16 @@ size_t NC_STACK_ypaflyer::func0(IDVList &stak)
     if ( !NC_STACK_ypabact::func0(stak) )
         return 0;
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case FLY_ATT_TYPE:
-                setFLY_type(val.value.i_data);
+                setFLY_type(val.Get<int32_t>());
                 break;
             default:
                 break;
@@ -49,41 +49,16 @@ size_t NC_STACK_ypaflyer::func2(IDVList &stak)
 {
     NC_STACK_ypabact::func2(stak);
 
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
+    for( auto& it : stak )
     {
-        IDVPair &val = it->second;
+        IDVPair &val = it.second;
 
-        if ( !val.skip() )
+        if ( !val.Skip )
         {
-            switch (val.id)
+            switch (val.ID)
             {
             case FLY_ATT_TYPE:
-                setFLY_type(val.value.i_data);
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return 1;
-}
-
-size_t NC_STACK_ypaflyer::func3(IDVList &stak)
-{
-    NC_STACK_ypabact::func3(stak);
-
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case FLY_ATT_TYPE:
-                *(int *)val.value.p_data = getFLY_type();
+                setFLY_type(val.Get<int32_t>());
                 break;
 
             default:
@@ -745,7 +720,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
         vec3d a3;
         a3 = _rotation.AxisZ();
 
-        float v60 = -arg->inpt->sliders_vars[0] * _maxrot * a2;
+        float v60 = -arg->inpt->Sliders[0] * _maxrot * a2;
 
         if ( a4 )
         {
@@ -853,7 +828,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
 
         _rotation *= mat3x3::RotateY(v60);
 
-        _thraction += _force * (a2 * 0.3) * arg->inpt->sliders_vars[2];
+        _thraction += _force * (a2 * 0.3) * arg->inpt->Sliders[2];
 
         if ( _thraction > _force )
             _thraction = _force;
@@ -862,7 +837,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
             _thraction = 0;
 
 
-        _flyerBoost = (fabs(_fly_dir_length) / 111.0 + 1.0) * (arg->inpt->sliders_vars[1] * 20000.0) * 0.5 + _mass * 9.80665;
+        _flyerBoost = (fabs(_fly_dir_length) / 111.0 + 1.0) * (arg->inpt->Sliders[1] * 20000.0) * 0.5 + _mass * 9.80665;
 
         float v22 = _pSector->height - _position.y;
 
@@ -887,7 +862,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
             arg79.target.pbact = arg106.ret_bact;
         }
 
-        if ( arg->inpt->but_flags & 1 || arg->inpt->but_flags & 2 )
+        if ( arg->inpt->Buttons.IsAny({0, 1}) )
         {
             arg79.direction = vec3d(0.0, 0.0, 0.0);
             arg79.weapon = _weapon;
@@ -900,7 +875,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
 
             arg79.start_point.y = _fire_pos.y;
             arg79.start_point.z = _fire_pos.z;
-            arg79.flags = ((arg->inpt->but_flags & 2) != 0) | 2;
+            arg79.flags = (arg->inpt->Buttons.Is(1) ? 1 : 0) | 2;
 
             LaunchMissile(&arg79);
         }
@@ -909,7 +884,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
         {
             if ( _status_flg & BACT_STFLAG_FIRE )
             {
-                if ( !(arg->inpt->but_flags & 4) )
+                if ( !arg->inpt->Buttons.Is(2) )
                 {
                     setState_msg arg78;
                     arg78.setFlags = 0;
@@ -920,7 +895,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
                 }
             }
 
-            if ( arg->inpt->but_flags & 4 )
+            if ( arg->inpt->Buttons.Is(2))
             {
                 if ( !(_status_flg & BACT_STFLAG_FIRE) )
                 {
@@ -942,7 +917,7 @@ void NC_STACK_ypaflyer::User_layer(update_msg *arg)
             }
         }
 
-        if ( arg->inpt->but_flags & 8 )
+        if ( arg->inpt->Buttons.Is(3) )
             HandBrake(arg);
 
         if ( _status_flg & BACT_STFLAG_LAND )
@@ -1159,39 +1134,3 @@ int NC_STACK_ypaflyer::getFLY_type()
 }
 
 
-size_t NC_STACK_ypaflyer::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 1:
-        return (size_t)func1();
-    case 2:
-        func2( *(IDVList *)data );
-        return 1;
-    case 3:
-        func3( *(IDVList *)data );
-        return 1;
-    case 70:
-        AI_layer3( (update_msg *)data );
-        return 1;
-    case 71:
-        User_layer( (update_msg *)data );
-        return 1;
-    case 74:
-        Move( (move_msg *)data );
-        return 1;
-    case 80:
-        return (size_t)SetPosition( (bact_arg80 *)data );
-    case 96:
-        Renew();
-        return 1;
-    case 97:
-        HandBrake( (update_msg *)data );
-        return 1;
-    default:
-        break;
-    }
-    return NC_STACK_ypabact::compatcall(method_id, data);
-}

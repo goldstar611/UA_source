@@ -29,38 +29,6 @@ size_t NC_STACK_skeleton::func0(IDVList &stak)
     return 1;
 }
 
-size_t NC_STACK_skeleton::func3(IDVList &stak)
-{
-    for(IDVList::iterator it = stak.begin(); it != stak.end(); it++)
-    {
-        IDVPair &val = it->second;
-
-        if ( !val.skip() )
-        {
-            switch (val.id)
-            {
-            case SKEL_ATT_PSKELET:
-                *(UAskeleton::Data **)val.value.p_data = GetSkelet();
-                break;
-            case SKEL_ATT_POINTSCNT:
-                *(int *)val.value.p_data = getSKEL_pntCount();
-                break;
-            case SKEL_ATT_SENCNT:
-                *(int *)val.value.p_data = getSKEL_senCount();
-                break;
-            case SKEL_ATT_POLYCNT:
-                *(int *)val.value.p_data = getSKEL_polyCount();
-                break;
-
-            default:
-                break;
-            }
-        }
-    }
-
-    return NC_STACK_rsrc::func3(stak);
-}
-
 // Create skeleton resource node and fill rsrc field data
 rsrc * NC_STACK_skeleton::rsrc_func64(IDVList &stak)
 {
@@ -69,7 +37,7 @@ rsrc * NC_STACK_skeleton::rsrc_func64(IDVList &stak)
     if ( !res )
         return NULL;
 
-    int elm_num = stak.Get(SKEL_ATT_POINTSCNT, 0);
+    int elm_num = stak.Get<int32_t>(SKEL_ATT_POINTSCNT, 0);
 
     if (!elm_num)
     {
@@ -109,7 +77,7 @@ rsrc * NC_STACK_skeleton::rsrc_func64(IDVList &stak)
 
     sklt->POO_NUM = elm_num;
 
-    int sen_count = stak.Get(SKEL_ATT_SENCNT, 0);
+    int sen_count = stak.Get<int32_t>(SKEL_ATT_SENCNT, 0);
 
     if (sen_count > 0)
     {
@@ -124,8 +92,8 @@ rsrc * NC_STACK_skeleton::rsrc_func64(IDVList &stak)
         }
     }
 
-    int pol_count = stak.Get(SKEL_ATT_POLYCNT, 0);
-    int num_indexes = stak.Get(SKEL_ATT_POLYPNTCNT, 0);
+    int pol_count = stak.Get<int32_t>(SKEL_ATT_POLYCNT, 0);
+    int num_indexes = stak.Get<int32_t>(SKEL_ATT_POLYPNTCNT, 0);
 
     if (pol_count > 0)
     {
@@ -399,32 +367,3 @@ int NC_STACK_skeleton::getSKEL_polyCount()
 
 
 
-size_t NC_STACK_skeleton::compatcall(int method_id, void *data)
-{
-    switch( method_id )
-    {
-    case 0:
-        return (size_t)func0( *(IDVList *)data );
-    case 3:
-        return (size_t)func3( *(IDVList *)data );
-    case 64:
-        return (size_t)rsrc_func64( *(IDVList *)data );
-    case 65:
-        return (size_t)rsrc_func65( (rsrc *)data );
-    case 128:
-        return (size_t)skeleton_func128( (IDVPair *)data );
-    case 129:
-        return (size_t)skeleton_func129( (skeleton_129_arg *)data );
-    case 130:
-        return (size_t)skeleton_func130( (skeleton_130_arg *)data );
-    case 131:
-        return (size_t)skeleton_func131( (int *)data );
-    case 132:
-        return (size_t)skeleton_func132( (skeleton_arg_132 *)data );
-    case 133:
-        return (size_t)skeleton_func133( (skeleton_arg133 *)data );
-    default:
-        break;
-    }
-    return NC_STACK_rsrc::compatcall(method_id, data);
-}

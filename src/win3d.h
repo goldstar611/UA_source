@@ -124,8 +124,6 @@ class NC_STACK_win3d: public NC_STACK_display
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual size_t raster_func192(IDVPair *);
     virtual size_t raster_func198(w3d_func198arg *arg);
     virtual size_t raster_func199(w3d_func199arg *arg);
@@ -147,7 +145,7 @@ public:
     virtual void FreeTexture(ResBitmap *arg);
     virtual void display_func271(IDVPair *stak);
     virtual void display_func272(IDVPair *);
-    virtual void display_func274(const char **name);
+    virtual void SaveScreenshot(const std::string & screenName);
     virtual void windd_func320(IDVPair *);
     virtual void windd_func321(IDVPair *);
     virtual void windd_func322(windd_dlgBox *dlgBox);
@@ -155,15 +153,14 @@ public:
     virtual void windd_func324(wdd_func324arg *inout);
     virtual void windd_func325(wdd_func324arg *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_win3d() {
         _setFrustumClip(1.0, 8192.0);
         //memset(&stack__win3d, 0, sizeof(stack__win3d));
     };
     virtual ~NC_STACK_win3d() {};
-
-    virtual const char * getClassName() {
-        return "win3d.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -207,6 +204,8 @@ public:
 
     virtual void ConvAlphaPalette(UA_PALETTE *dst, const UA_PALETTE &src, bool transp);
     virtual SDL_PixelFormat *GetScreenFormat();
+    virtual SDL_Surface *CreateSurfaceScreenFormat(int width, int height);
+    virtual SDL_Surface *ConvertToScreenFormat(SDL_Surface *src);
 
 protected:
     int initPolyEngine();
@@ -232,7 +231,7 @@ public:
 
     __NC_STACK_win3d stack__win3d;
 
-    static key_value_stru win3d_keys[21];
+    static Common::Ini::KeyList win3d_keys;
 
 protected:
     GLdouble frustum[16];

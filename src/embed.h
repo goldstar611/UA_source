@@ -2,18 +2,7 @@
 #define EMBED_H_INCLUDED
 
 #include "nucleas.h"
-#include "nlist.h"
-
-struct __NC_STACK_embed
-{
-    nlist embed_objects;
-};
-
-struct embd_node: public nnode
-{
-    int num;
-    NC_STACK_rsrc *objects[32];
-};
+#include <deque>
 
 class NC_STACK_embed: public NC_STACK_nucleus
 {
@@ -23,14 +12,11 @@ public:
     virtual size_t func5(IFFile **file);
     virtual size_t func6(IFFile **file);
 
-    virtual size_t compatcall(int method_id, void *data);
-    NC_STACK_embed() {
-        memset(&stack__embed, 0, sizeof(stack__embed));
-    };
+    NC_STACK_embed() {};
     virtual ~NC_STACK_embed() {};
-
-    virtual const char * getClassName() {
-        return "embed.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -40,7 +26,7 @@ public:
     //Data
     static const Nucleus::ClassDescr description;
 
-    __NC_STACK_embed stack__embed;
+    std::deque<NC_STACK_rsrc *> _resources;
 };
 
 #endif // EMBED_H_INCLUDED

@@ -10,7 +10,6 @@ public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
     virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual void AI_layer3(update_msg *arg);
     virtual void User_layer(update_msg *arg);
     virtual void FightWithBact(bact_arg75 *arg);
@@ -22,7 +21,6 @@ public:
     virtual void ypagun_func128(const vec3d &basis, bool directDown);
     virtual vec3d ypagun_func129(const vec3d &axis, float angle);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ypagun()
     {
         _gunMaxUp    = 0.0;
@@ -37,10 +35,9 @@ public:
         _gunDownTime = 0;
     };
     virtual ~NC_STACK_ypagun() {};
-
-    virtual const char * getClassName()
-    {
-        return "ypagun.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance()

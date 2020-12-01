@@ -33,13 +33,13 @@ int yw_InitTooltips(NC_STACK_ypaworld *yw);
 int loadTOD(NC_STACK_ypaworld *yw, const char *fname);
 int writeTOD(NC_STACK_ypaworld *yw, const char *fname, int tod);
 
-void sb_0x4eb94c(NC_STACK_ypaworld *yw, BriefengScreen *brf, struC5 *struc, int a5);
-void ypaworld_func158__DrawVehicle(NC_STACK_ypaworld *yw, BriefengScreen *brf, struC5 *struc);
+void sb_0x4eb94c(NC_STACK_ypaworld *yw, BriefengScreen *brf, InputState *struc, int a5);
+void ypaworld_func158__DrawVehicle(NC_STACK_ypaworld *yw, BriefengScreen *brf, InputState *struc);
 
 void set_keys_vals(NC_STACK_ypaworld *yw);
 void yw_draw_input_list(NC_STACK_ypaworld *yw, UserData *usr);
 
-int yw_loadSky(NC_STACK_ypaworld *yw, const char *skyname);
+int yw_loadSky(NC_STACK_ypaworld *yw, const std::string &skyname);
 //void yw_renderSky_test(_NC_STACK_ypaworld *yw, base77Func *rndr_params);
 
 void fill_videmodes_list(UserData *usr);
@@ -61,7 +61,7 @@ void yw_calcPlayerScore(NC_STACK_ypaworld *yw);
 
 int sub_4DA41C(NC_STACK_ypaworld *yw, LevelDesc *mapp, const char *fname);
 
-void ypaworld_func158__sub4__sub1__sub4(NC_STACK_ypaworld *yw, UserData *usr, struC5 *inpt);
+void ypaworld_func158__sub4__sub1__sub4(NC_STACK_ypaworld *yw, UserData *usr, InputState *inpt);
 
 NC_STACK_base *load_set_base();
 
@@ -75,8 +75,7 @@ NC_STACK_bitmap * sub_44816C(NC_STACK_bitmap *src, const char *name);
 
 void ypaworld_func158__sub3(NC_STACK_ypaworld *yw, UserData *usr);
 
-int sub_449678(NC_STACK_ypaworld *yw, struC5 *struc, int kkode);
-void sub_46D0F8(const char *path);
+void sub_46D0F8(const std::string &path);
 
 int init_prototypes(NC_STACK_ypaworld *yw);
 
@@ -96,20 +95,11 @@ int yw_write_item_modifers(NC_STACK_ypaworld *yw, FSMgr::FileHandle *fil);
 void sb_0x44ac24(NC_STACK_ypaworld *yw);
 void sub_4EAC80(NC_STACK_ypaworld *yw);
 
-void sub_4811E8(NC_STACK_ypaworld *yw, int id);
 
 
-int cells_mark_type(NC_STACK_ypaworld *yw, const char *a2);
-int cells_mark_owner(NC_STACK_ypaworld *yw, const char *a2);
-int cells_mark_hight(NC_STACK_ypaworld *yw, const char *a2);
 
-int sub_44B9B8(NC_STACK_ypaworld *yw, const char *a3);
-void yw_InitBuddies(NC_STACK_ypaworld *yw);
-void yw_InitGates(NC_STACK_ypaworld *yw);
-void yw_InitSuperItems(NC_STACK_ypaworld *yw);
-void sub_44F748(NC_STACK_ypaworld *yw);
 int sb_0x451034(NC_STACK_ypaworld *yw);
-void splashScreen_OutText(NC_STACK_ypaworld *yw, NC_STACK_display *w3d, const char *txt, int x, int y);
+void splashScreen_OutText(NC_STACK_ypaworld *yw, NC_STACK_display *w3d, const std::string &txt, int x, int y);
 void sub_44DBF8(NC_STACK_ypaworld *yw, int _dx, int _dz, int _dxx, int _dzz, struct_44dbf8 &a6, int flags);
 void sub_44E07C(NC_STACK_ypaworld *yw, struct_44dbf8 &arg);
 void sub_44D8B8(ypaworld_arg136 *arg, const struct_44dbf8 &loc);
@@ -117,15 +107,13 @@ void sub_44D8B8(ypaworld_arg136 *arg, const struct_44dbf8 &loc);
 void ypaworld_func2__sub0__sub0(NC_STACK_ypaworld *yw);
 void ypaworld_func2__sub0__sub1(NC_STACK_ypaworld *yw, NC_STACK_ypabact *bact1, NC_STACK_ypabact *bact2);
 
-NC_STACK_ypabact *yw_createUnit(NC_STACK_ypaworld *yw, int model_id);
 void sub_44BF34(vhclSndFX *sndfx);
 
 
 void sb_0x4d7c08(NC_STACK_ypaworld *yw, base_64arg *bs64, int a2);
-void sb_0x44fc60(NC_STACK_ypaworld *yw, cellArea *cell, int secX, int secY, int a5, yw_arg129 *a6);
-void  sub_44F500(NC_STACK_ypaworld *yw, int id);
 
-void sb_0x456384(NC_STACK_ypaworld *yw, int x, int y, int ownerid2, int blg_id, int a7);
+
+
 
 void ypaworld_func148__sub0(NC_STACK_ypaworld *yw, int x, int y);
 int ypaworld_func148__sub1(NC_STACK_ypaworld *yw, int id, int a4, int x, int y, int ownerID2, char blg_ID);
@@ -139,7 +127,6 @@ void sb_0x4d7c08__sub0(NC_STACK_ypaworld *yw);
 void draw_tooltip(NC_STACK_ypaworld *yw);
 
 void sub_4C40AC(NC_STACK_ypaworld *yw);
-NC_STACK_ypabact *sub_449518(NC_STACK_ypaworld *yw);
 
 
 class squadMan: public GuiList
@@ -322,7 +309,7 @@ struct map_event
     evnt evnts[16];
 };
 
-void ypaworld_func64__sub7(NC_STACK_ypaworld *yw, struC5 *inpt);
+void ypaworld_func64__sub7(NC_STACK_ypaworld *yw, InputState *inpt);
 void ypaworld_func64__sub8(NC_STACK_ypaworld *yw);
 void ypaworld_func64__sub14(NC_STACK_ypaworld *yw);
 
@@ -330,7 +317,7 @@ void ypaworld_func64__sub15(NC_STACK_ypaworld *yw);
 void ypaworld_func64__sub16(NC_STACK_ypaworld *yw);
 void ypaworld_func64__sub17(NC_STACK_ypaworld *yw);
 
-int sub_47B388(int a1, const char *a2);
+int sub_47B388(int a1, const std::string &a2);
 
 void ypaworld_func159__real(NC_STACK_ypaworld *obj, yw_arg159 *arg);
 void sb_0x4d7c08__sub0__sub0(NC_STACK_ypaworld *yw);
@@ -354,11 +341,7 @@ void ypaworld_func64__sub20(NC_STACK_ypaworld *ywo, int dtime);
 void ypaworld_func64__sub6(NC_STACK_ypaworld *yw);
 void ypaworld_func64__sub5(NC_STACK_ypaworld *yw);
 
-void sub_44F958(NC_STACK_ypaworld *yw, cellArea *cell, char secX, char secY, uint8_t owner);
-
-void ypaworld_func64__sub21(NC_STACK_ypaworld *yw, struC5 *arg);
-
-void ypaworld_func64__sub1(NC_STACK_ypaworld *yw, struC5 *inpt);
+void ypaworld_func64__sub21(NC_STACK_ypaworld *yw, InputState *arg);
 
 
 
@@ -372,7 +355,7 @@ void ypaworld_func64__sub3(NC_STACK_ypaworld *yw);
 void sub_44A094(NC_STACK_ypaworld *yw);
 
 void FFeedback_Update(NC_STACK_ypaworld *yw);
-void sb_0x447720(NC_STACK_ypaworld *yw, struC5 *inpt);
+void sb_0x447720(NC_STACK_ypaworld *yw, InputState *inpt);
 void recorder_update_time(NC_STACK_ypaworld *yw, int dtime);
 void recorder_write_frame(NC_STACK_ypaworld *yw);
 void ypaworld_func64__sub22(NC_STACK_ypaworld *yw);
@@ -403,11 +386,10 @@ void deleteSplashScreen(NC_STACK_ypaworld *yw, NC_STACK_bitmap *splashScreen);
 
 void yw_RenderVector2D(NC_STACK_ypaworld *yw, UAskeleton::Data *wire, float a3, float a4, float a5, float a6, float a7, float a8, float a9, float a10, uint32_t coloooor, wis_color_func color_func, wis_color_func color_func2, bool aspectCorrection = false);
 uint32_t yw_GetColor(NC_STACK_ypaworld *yw, int color_id);
-void yw_debriefUpdate(NC_STACK_ypaworld *yw, struC5 *inpt);
+void yw_debriefUpdate(NC_STACK_ypaworld *yw, InputState *inpt);
 void sub_4D6958(NC_STACK_ypaworld *yw, NC_STACK_ypabact *unit, samples_collection1 *collection);
 
 int sub_4C885C();
-void sb_0x4c87fc(NC_STACK_ypaworld *yw, const char *a2, GuiBase *lstvw);
 void sub_4476AC(NC_STACK_ypaworld *yw);
 
 int recorder_create_camera(NC_STACK_ypaworld *yw);
@@ -415,10 +397,9 @@ int recorder_go_to_frame(NC_STACK_ypaworld *yw, recorder *rcrd, int wanted_frame
 int recorder_open_replay(recorder *rcrd);
 void recorder_stoprec(NC_STACK_ypaworld *yw);
 
-void debug_info_draw(NC_STACK_ypaworld *yw, struC5 *inpt);
 void ypaworld_func163__sub1(NC_STACK_ypaworld *yw, recorder *rcrd, int a3);
 
-char * sub_4E4F80(NC_STACK_ypaworld *yw, sklt_wis *wis, char *cur, float x, float y, int value, int maxval, int valCH, int valBG, const char *a10, const char *a11, int flag = 0);
+char * sub_4E4F80(NC_STACK_ypaworld *yw, sklt_wis *wis, char *cur, float x, float y, int value, int maxval, int valCH, int valBG, const std::string &txt1, const std::string &txt2, int flag = 0);
 void sub_4D0C24(NC_STACK_ypaworld *yw, const char *a1, const char *a2);
 
 

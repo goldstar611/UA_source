@@ -10,7 +10,6 @@ public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
     virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual void AI_layer3(update_msg *arg);
     virtual void User_layer(update_msg *arg);
     virtual void Move(move_msg *arg);
@@ -18,16 +17,15 @@ public:
     virtual void Renew();
     virtual void HandBrake(update_msg *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_ypaflyer() 
     {
         _flyerBoost = 0.0;
         _flyerType    = 0;
     };
     virtual ~NC_STACK_ypaflyer() {};
-
-    virtual const char * getClassName() {
-        return "ypaflyer.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

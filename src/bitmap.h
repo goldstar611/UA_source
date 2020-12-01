@@ -38,22 +38,19 @@ class NC_STACK_bitmap: public NC_STACK_rsrc
 public:
     virtual size_t func0(IDVList &stak);
     virtual size_t func1();
-    virtual size_t func2(IDVList &stak);
-    virtual size_t func3(IDVList &stak);
     virtual rsrc * rsrc_func64(IDVList &stak);
     virtual size_t rsrc_func65(rsrc *pres);
     virtual size_t bitmap_func128(IDVPair *);
     virtual size_t bitmap_func129(IDVPair *);
     virtual void bitmap_func130(bitmap_arg130 *out);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_bitmap() {
         memset(&stack__bitmap, 0, sizeof(stack__bitmap));
     };
     virtual ~NC_STACK_bitmap() {};
-
-    virtual const char * getClassName() {
-        return "bitmap.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {
@@ -87,9 +84,6 @@ public:
     int sub_416704(pixel_2d *a3);
     
     virtual void PrepareTexture( bool force = false );
-    
-    static SDL_Surface *ConvertToScreen(SDL_Surface *src);
-    static SDL_Surface *CreateSurfaceScreenFormat(int width, int height);
 
 public:
     //Data

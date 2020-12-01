@@ -16,14 +16,13 @@ public:
     virtual rsrc * rsrc_func64(IDVList &stak);
     virtual size_t rsrc_func66(rsrc_func66_arg *arg);
 
-    virtual size_t compatcall(int method_id, void *data);
     NC_STACK_sklt() {
         memset(&stack__sklt, 0, sizeof(stack__sklt));
     };
     virtual ~NC_STACK_sklt() {};
-
-    virtual const char * getClassName() {
-        return "sklt.class";
+    
+    virtual const std::string &GetClassName() const {
+        return description._classname;
     };
 
     static NC_STACK_nucleus * newinstance() {

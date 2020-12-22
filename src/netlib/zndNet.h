@@ -103,13 +103,14 @@ class ZNDNet
 {
 // Methods
 public:
-    ~ZNDNet();
+    virtual ~ZNDNet();
 
     Event *Events_Pop();
     void   Events_ClearByType(uint32_t type);
     void   Events_Clear();
     Event *Events_PeekByType(uint32_t type);
     Event *Events_WaitForMsg(uint32_t type, uint32_t time = 0);
+    Event *Events_PopSystem(); // Without data events
 
     void   Stop(); // Don't call it from internal threads!
 
@@ -124,6 +125,11 @@ public:
 
     virtual void SendData(uint64_t to, void *data, uint32_t sz, uint8_t flags = 0, uint8_t channel = CHANNEL_USR) = 0;
     virtual void BroadcastData(void *data, uint32_t sz, uint8_t flags = 0, uint8_t channel = CHANNEL_USR) = 0;
+    
+    virtual uint64_t GetMyID() {return 0;};
+    virtual std::string GetMyName() {return std::string();};
+    
+    virtual uint64_t GetMySesID() {return 0;};
 
 
     bool SessionCheckName(const std::string &name);

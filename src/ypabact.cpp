@@ -52,7 +52,7 @@ NC_STACK_ypabact::NC_STACK_ypabact()
     _radar = 0;
     _owner = 0;
     _aggr = 0;
-    _status = 0;
+    _status = BACT_STATUS_NOPE;
     _status_flg = 0;
     _primTtype = 0;
     _secndTtype = 0;
@@ -242,7 +242,7 @@ size_t NC_STACK_ypabact::func0(IDVList &stak)
                         viewMsg.classID = _bact_type;
                         viewMsg.id = _gid;
 
-                        if ( viewMsg.classID == 4 )
+                        if ( viewMsg.classID == BACT_TYPES_MISSLE )
                         {
                             NC_STACK_ypamissile *miss = dynamic_cast<NC_STACK_ypamissile *>(this);
                             viewMsg.launcher = miss->getMISS_launcher()->_gid;
@@ -3222,7 +3222,7 @@ void NC_STACK_ypabact::Die()
 
 void NC_STACK_ypabact::SetState(setState_msg *arg)
 {
-    if ( (_bact_type == BACT_TYPES_TANK || _bact_type == BACT_TYPES_CAR) && arg->newStatus == 2 )
+    if ( (_bact_type == BACT_TYPES_TANK || _bact_type == BACT_TYPES_CAR) && arg->newStatus == BACT_STATUS_DEAD )
     {
         setState_msg newarg;
         newarg.unsetFlags = 0;
@@ -6895,7 +6895,7 @@ void NC_STACK_ypabact::NetUpdate(update_msg *upd)
 
     ypabact_func117(upd);
 
-    for ( NC_STACK_ypamissile* &misl : _missiles_list )
+    for ( NC_STACK_ypamissile* misl : Utils::IterateListCopy<NC_STACK_ypamissile *>(_missiles_list) )
     {
         misl->setMISS_launcher(this);
         misl->Update(upd);
@@ -6914,7 +6914,7 @@ void NC_STACK_ypabact::NetUpdate(update_msg *upd)
 
     upd->units_count = 0;
 
-    for (NC_STACK_ypabact* &bct : _kidList)
+    for (NC_STACK_ypabact* bct : _kidList.safe_iter())
     {
         bct->NetUpdate(upd);
         upd->units_count++;

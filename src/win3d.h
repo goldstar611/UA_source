@@ -159,7 +159,7 @@ public:
     };
     virtual ~NC_STACK_win3d() {};
     
-    virtual const std::string &GetClassName() const {
+    virtual const std::string &ClassName() const {
         return description._classname;
     };
 
@@ -194,7 +194,7 @@ public:
 
 
     static void initfirst();
-    int load_font(const char *fontname);
+    int LoadFontByDescr(const std::string &fontname);
     void matrixAspectCorrection(mat3x3 &inout, bool invert);
     void getAspectCorrection(float &cW, float &cH, bool invert);
 
@@ -206,6 +206,8 @@ public:
     virtual SDL_PixelFormat *GetScreenFormat();
     virtual SDL_Surface *CreateSurfaceScreenFormat(int width, int height);
     virtual SDL_Surface *ConvertToScreenFormat(SDL_Surface *src);
+    
+    static SDL_Surface *ConvertSDLSurface(SDL_Surface *src, const SDL_PixelFormat * fmt);
 
 protected:
     int initPolyEngine();

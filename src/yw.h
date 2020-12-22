@@ -409,6 +409,15 @@ enum
     ENVMODE_HELP = 10
 };
 
+enum
+{
+    NETSCREEN_MODE_SELECT = 0,
+    NETSCREEN_SESSION_SELECT = 1, // Only on dedicated server
+    NETSCREEN_ENTER_NAME  = 2,
+    NETSCREEN_CHOOSE_MAP  = 3,
+    
+};
+
 struct EnvAction
 {
     enum
@@ -603,11 +612,11 @@ public:
     int update_time_norm;
     int flush_time_norm;
     int kickTime;
-    uint32_t latencyCheck;
-    uint32_t netProblemCount;
+    int32_t latencyCheck;
+    int32_t netProblemCount;
     uint32_t netAllOkCount;
     uint32_t deadCheck;
-    uint32_t sendScore;
+    int32_t sendScore;
     netType2 players[8];
     netType1 players2[4];
     NC_STACK_button *confirm_button;
@@ -674,9 +683,10 @@ public:
     void sub_46D698();
     void yw_NetPrintStartInfo();
     void yw_CheckCDs();
-    void sub_46B328();
+    void AfterMapChoose();
     void yw_NetOKProvider();
     void yw_JoinNetGame();
+    void JoinLobbyLessGame();
     int ypaworld_func158__sub0__sub8(const char**, const char**);
     void ypaworld_func151__sub7();
     void yw_FractionInit();
@@ -2301,7 +2311,7 @@ public:
     virtual void ypaworld_func177(yw_arg177 *arg);
     virtual size_t ypaworld_func179(yw_arg161 *arg);
     virtual void ypaworld_func180(yw_arg180 *arg);
-    virtual bool ypaworld_func181(void *arg);
+    virtual bool ypaworld_func181(yw_arg181 *arg);
     virtual void ypaworld_func182(void *arg);
     virtual size_t ypaworld_func183(yw_arg161 *arg);
     virtual void HistoryEventAdd(const World::History::Record &arg);

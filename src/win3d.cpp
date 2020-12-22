@@ -104,8 +104,6 @@ void NC_STACK_win3d::initfirst()
         target.driverdata   = 0;
 
         gfxMode *mode;
-        char buf[64];
-
         if (SDL_GetClosestDisplayMode(0, &target, &closest) )
         {
             mode = new gfxMode;
@@ -114,8 +112,7 @@ void NC_STACK_win3d::initfirst()
             mode->mode = closest;
             mode->bpp = SDL_BYTESPERPIXEL(closest.format) * 8;
             mode->windowed = false;
-            sprintf(buf, "%d x %d", mode->w, mode->h);
-            mode->name = buf;
+            mode->name = fmt::sprintf("%d x %d", mode->w, mode->h);
 
             mode->sortid = (closest.w & 0x7FFF) << 7 | (closest.h & 0x7FFF);
 
@@ -131,8 +128,7 @@ void NC_STACK_win3d::initfirst()
             mode->mode = deskMode;
             mode->bpp = SDL_BYTESPERPIXEL(corrected) * 8;
             mode->windowed = true;
-            sprintf(buf, "Windowed %d x %d", mode->w, mode->h);
-            mode->name = buf;
+            mode->name = fmt::sprintf("Windowed %d x %d", mode->w, mode->h);
 
             mode->sortid = 0x40000000 | (checkmodes[i][0] & 0x7FFF) << 7 | (checkmodes[i][1] & 0x7FFF);
 
@@ -543,22 +539,23 @@ gfxMode *sub_41F68C()
     return graphicsModes.front();
 }
 
-gfxMode *windd_func0__sub0(const char *file)
+gfxMode *windd_func0__sub0(const std::string &file)
 {
-    char buf[128];
     FSMgr::FileHandle *fil = uaOpenFile(file, "r");
 
     if ( fil )
     {
-        if ( fil->gets(buf, 128) )
+        std::string line;
+        if ( fil->ReadLine(&line) )
         {
-            char *eol = strpbrk(buf, "\n\r");
-            if ( eol )
-                *eol = 0;
+            size_t pos = line.find_first_of("\n\r");
+            
+            if (pos != std::string::npos)
+                line.erase(pos);
 
             for (std::list<gfxMode *>::iterator it = graphicsModes.begin(); it != graphicsModes.end(); it++)
             {
-                if ( strcasecmp((*it)->name.c_str(), buf) == 0 )
+                if ( StriCmp((*it)->name, line) == 0 )
                     return *it;
             }
         }
@@ -742,21 +739,25 @@ void sub_42D410(__NC_STACK_win3d *obj, int curID, int force)
 }
 
 
-int NC_STACK_win3d::load_font(const char *fontname)
+int NC_STACK_win3d::LoadFontByDescr(const std::string &fontname)
 {
-    char buf[128];
+    std::vector<std::string> splt = Stok::Split(fontname, ",");
 
-    strcpy(buf, fontname);
-
-    const char *facename = strtok(buf, ",");
-    const char *s_height = strtok(0, ",");
+    std::string facename;
+    std::string s_height;
+    
+    if (splt.size() > 0)
+        facename = splt[0];
+    
+    if (splt.size() > 1)
+        s_height = splt[1];
     //const char *s_weight = strtok(0, ",");
     //const char *s_charset = strtok(0, ",");
 
     int height;//, weight, charset;
-    if ( facename && s_height )//&& s_weight && s_charset )
+    if ( !facename.empty() && !s_height.empty() )//&& s_weight && s_charset )
     {
-        height = atoi(s_height);
+        height = std::stoi(s_height);
         //weight = atoi(s_weight);
         //charset = atoi(s_charset);
     }
@@ -914,7 +915,7 @@ size_t NC_STACK_win3d::windd_func0(IDVList &stak)
 
     fpsLimitter(win3d_keys[17].Get<int>());
 
-    load_font("MS Sans Serif,12,400,0");
+    LoadFontByDescr("MS Sans Serif,12,400,0");
 
     FSMgr::FileHandle *fil = uaOpenFile("env/vid.def", "w");
     if ( fil )
@@ -2093,10 +2094,10 @@ bool NC_STACK_win3d::AllocTexture(ResBitmap *bitm)
         }
         else
         {
-            SDL_Surface *conv = SDL_ConvertSurface(bitm->swTex, stack__win3d.pixfmt, 0);
+            SDL_Surface *conv = ConvertSDLSurface(bitm->swTex, stack__win3d.pixfmt);
             
             SDL_LockSurface(conv);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitm->width, bitm->height, 0, stack__win3d.glPixfmt, stack__win3d.glPixtype, bitm->swTex->pixels);
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, bitm->width, bitm->height, 0, stack__win3d.glPixfmt, stack__win3d.glPixtype, conv->pixels);
             SDL_UnlockSurface(conv);
             
             SDL_FreeSurface(conv);
@@ -2460,6 +2461,11 @@ SDL_Surface *NC_STACK_win3d::CreateSurfaceScreenFormat(int width, int height)
 
 SDL_Surface *NC_STACK_win3d::ConvertToScreenFormat(SDL_Surface *src)
 {
+    return ConvertSDLSurface(src, stack__win3d.screenSurface->format);
+}
+
+SDL_Surface * NC_STACK_win3d::ConvertSDLSurface(SDL_Surface *src, const SDL_PixelFormat * fmt)
+{
 #if (SDL_COMPILEDVERSION == SDL_VERSIONNUM(2, 0, 12))
     /***
      * Workaround for bug with convertation of surface with palette introduced
@@ -2467,7 +2473,11 @@ SDL_Surface *NC_STACK_win3d::ConvertToScreenFormat(SDL_Surface *src)
      ***/
     if (src->format->BytesPerPixel == 1)
     {
-        SDL_Surface *tmp = CreateSurfaceScreenFormat(src->w, src->h);
+#if SDL_VERSION_ATLEAST(2,0,5)
+        SDL_Surface *tmp = SDL_CreateRGBSurfaceWithFormat(0, src->w, src->h, fmt->BitsPerPixel, fmt->format);
+#else
+        SDL_Surface *tmp = SDL_CreateRGBSurface(0, src->w, src->h, fmt->BitsPerPixel, fmt->Rmask, fmt->Gmask, fmt->Bmask, fmt->Amask );
+#endif
         SDL_BlendMode blend = SDL_BLENDMODE_NONE;
         SDL_GetSurfaceBlendMode(src, &blend);
         SDL_SetSurfaceBlendMode(src, SDL_BLENDMODE_NONE);
@@ -2476,9 +2486,9 @@ SDL_Surface *NC_STACK_win3d::ConvertToScreenFormat(SDL_Surface *src)
         return tmp;
     }
     else
-        return SDL_ConvertSurface(src, stack__win3d.screenSurface->format, 0);
+        return SDL_ConvertSurface(src, fmt, 0);
 #else
-    return SDL_ConvertSurface(src, stack__win3d.screenSurface->format, 0);
+    return SDL_ConvertSurface(src, fmt, 0);
 #endif
 }
 

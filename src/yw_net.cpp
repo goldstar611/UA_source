@@ -274,9 +274,9 @@ void yw_netBakeVhcl(NC_STACK_ypabact *bact, uamessage_vhclData *dat, int id, int
         return;
     }
 
-    common->pos_x = (int32_t)bact->_position.x / 2;
-    common->pos_y = (int32_t)bact->_position.y / 2;
-    common->pos_z = (int32_t)bact->_position.z / 2;
+    common->pos_x = (int16_t)bact->_position.x / 2;
+    common->pos_y = (int16_t)bact->_position.y / 2;
+    common->pos_z = (int16_t)bact->_position.z / 2;
 
     if ( !interpolate && extended)
     {
@@ -286,14 +286,14 @@ void yw_netBakeVhcl(NC_STACK_ypabact *bact, uamessage_vhclData *dat, int id, int
     if ( bact->getBACT_viewer() && (bact->_status_flg & BACT_STFLAG_LAND) )
     {
         float len = bact->_viewer_overeof - bact->_overeof;
-        common->pos_y += (int32_t)len / 2;
+        common->pos_y += (int16_t)len / 2;
     }
 
     if ( bact->_bact_type == BACT_TYPES_GUN )
     {
-        common->pos_x = (int32_t)bact->_old_pos.x / 2;
-        common->pos_y = (int32_t)bact->_old_pos.y / 2;
-        common->pos_z = (int32_t)bact->_old_pos.z / 2;
+        common->pos_x = (int16_t)bact->_old_pos.x / 2;
+        common->pos_y = (int16_t)bact->_old_pos.y / 2;
+        common->pos_z = (int16_t)bact->_old_pos.z / 2;
 
         common->specialinfo |= vhcldata::SI_YPAGUN;
     }

@@ -307,6 +307,7 @@ size_t NC_STACK_ypaworld::Process(base_64arg *arg)
 {
     extern GuiList gui_lstvw; //In yw_game_ui.cpp
     extern GuiList lstvw2; //In yw_game_ui.cpp
+    extern GuiList exit_menu; //In yw_game_ui.cpp
     extern bool SPEED_DOWN_NET; //In yw_net.cpp
 
     if ( (gui_lstvw.IsClosed() && lstvw2.IsClosed())
@@ -325,6 +326,113 @@ size_t NC_STACK_ypaworld::Process(base_64arg *arg)
     if ( !ypaworld_func64__sub4(this, arg) )
     {
         uint32_t v92 = profiler_begin();
+
+        // Fork: in-game chat built on the exit-menu confirm-prompt window
+        // (lstvw2 - the same dialog the "Really exit?" flow uses: title,
+        // typed text line, OK/CANCEL entries, X button, RETURN/ESC keys).
+        // T opens it, typing fills the text line, RETURN sends the buffer
+        // as UAMSG_MESSAGE (or the OK entry), ESC closes (or CANCEL).
+        if ( _isNetGame )
+        {
+            int chatState = sub_4C885C();
+
+            ypa_log_out("+++ CHATDBG: frame chatActive=%d chatState=%d lstvw2Closed=%d\n",
+                        (int)_netChatActive, chatState, (int)lstvw2.IsClosed());
+
+            if ( _netChatActive && chatState == 3 )
+            {
+                // Prompt is open: capture typing into the chat buffer and
+                // mirror it into the prompt's text line.
+                // The shell's key gate captures RETURN/ESC into
+                // _kbdLastKeyHit and consumes them from the input state
+                // while the prompt window is open - read both sources.
+                int keyHit = arg->field_8->KbdLastHit;
+                if ( keyHit == Input::KC_NONE && _kbdLastKeyHit != Input::KC_NONE )
+                    keyHit = _kbdLastKeyHit;
+
+                if ( keyHit != Input::KC_NONE || _kbdLastKeyHit != Input::KC_NONE )
+                    ypa_log_out("+++ CHATDBG: keyHit=%d kbdLast=%d chr=%d kbdHit_inpt=%d\n",
+                                keyHit, _kbdLastKeyHit, arg->field_8->chr, arg->field_8->KbdLastHit);
+
+                if ( keyHit != Input::KC_NONE )
+                {
+                    if ( keyHit == Input::KC_RETURN )
+                    {
+                        ChatPromptClose(1); // OK - the chat hook sends next frame
+                    }
+                    else if ( keyHit == Input::KC_ESCAPE )
+                    {
+                        ChatPromptClose(2); // CANCEL
+                    }
+                    else if ( keyHit == Input::KC_BACKSPACE )
+                    {
+                        if ( !_netChatBuffer.empty() )
+                            _netChatBuffer.pop_back();
+                    }
+                    else if ( arg->field_8->chr >= 0x20 && arg->field_8->chr <= 0x7E &&
+                              _netChatBuffer.size() < 63 )
+                    {
+                        _netChatBuffer.push_back(arg->field_8->chr);
+                        arg->field_8->chr = 0;
+                    }
+
+                    arg->field_8->KbdLastHit = Input::KC_NONE;
+                    arg->field_8->KbdLastDown = Input::KC_NONE;
+                    arg->field_8->HotKeyID = -1;
+                    _kbdLastKeyHit = Input::KC_NONE;
+                }
+
+                ChatPromptSetText(_netChatBuffer.empty() ? " " : _netChatBuffer);
+            }
+            else if ( _netChatActive && (chatState == 1 || chatState == 2) )
+            {
+                // Prompt closed: 1 = OK/RETURN (send), 2 = CANCEL/ESC.
+                if ( chatState == 1 && !_netChatBuffer.empty() )
+                {
+                    uamessage_message msgMsg;
+                    msgMsg.msgID = UAMSG_MESSAGE;
+                    msgMsg.owner = _GameShell->netPlayerOwner;
+                    strncpy(msgMsg.message, _netChatBuffer.c_str(), 63);
+                    msgMsg.message[63] = 0;
+
+                    NetBroadcastMessage(&msgMsg, sizeof(msgMsg), true);
+
+                    // Show our own message locally - the broadcast does not
+                    // loop back to the sender.
+                    yw_arg159 arg159;
+                    arg159.txt = fmt::sprintf("%s: %s", _GameShell->netPlayerName, msgMsg.message);
+                    arg159.MsgID = 93;
+                    arg159.Priority = 10;
+                    arg159.unit = NULL;
+                    ypaworld_func159(&arg159);
+                }
+
+                _netChatActive = false;
+                _netChatBuffer.clear();
+
+                // The prompt window is shared with the exit-game
+                // confirmation - restore its defaults.
+                ChatPromptSetText(" ");
+                ChatPromptSetTitle(" ");
+            }
+            else if ( !_netChatActive && chatState != 3 &&
+                      arg->field_8->KbdLastHit == Input::KC_T )
+            {
+                _netChatActive = true;
+                _netChatBuffer.clear();
+
+                ChatPromptSetTitle("MESSAGE TO ALL");
+
+                // Open the shared prompt window with the chat title.
+                // NULL parent: the exit-menu flow only consumes prompt
+                // results when the prompt's parent is &exit_menu - with a
+                // NULL parent only the chat hook reads the result.
+                sb_0x4c87fc("MESSAGE TO ALL", nullptr);
+
+                arg->field_8->KbdLastHit = Input::KC_NONE;
+                arg->field_8->chr = 0;
+            }
+        }
 
         _netChatSystem = false;
 
@@ -5127,6 +5235,7 @@ bool NC_STACK_ypaworld::OpenGameShell()
 
 void NC_STACK_ypaworld::CloseGameShell()
 {
+    ypa_log_out("+++ SHELL: CloseGameShell (confirm=%p)\n", (void*)_GameShell->confirm_button);
     if ( _GameShell->HasInited )
     {       
         if ( _GameShell->confirm_button )

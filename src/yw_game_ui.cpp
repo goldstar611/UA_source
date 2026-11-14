@@ -116,6 +116,32 @@ void NC_STACK_ypaworld::sb_0x4c87fc(const std::string &a2, GuiBase *lstvw)
     dword_5BAF9C = 3;
 }
 
+// Fork: in-game chat helpers - the chat line lives in the shared prompt
+// window (dword_5BAF98) while it is open.
+void ChatPromptSetText(const std::string &txt)
+{
+    dword_5BAF98 = txt;
+}
+
+std::string ChatPromptGetText()
+{
+    return dword_5BAF98;
+}
+
+void ChatPromptSetTitle(const std::string &txt)
+{
+    strncpy(lstvw2.title, txt.c_str(), sizeof(lstvw2.title) - 1);
+    lstvw2.title[sizeof(lstvw2.title) - 1] = 0;
+}
+
+void NC_STACK_ypaworld::ChatPromptClose(int result)
+{
+    // Mirror the prompt handler's own close paths: close the window and
+    // set the result code the chat hook reads back (1 = OK, 2 = CANCEL).
+    GuiWinClose(&lstvw2);
+    dword_5BAF9C = result;
+}
+
 void NC_STACK_ypaworld::sub_449DE8(const std::string &a2)
 {
     if ( !_isNetGame )

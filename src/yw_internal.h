@@ -345,6 +345,12 @@ void yw_RenderVector2D(NC_STACK_ypaworld *yw, UAskeleton::Data *wire, float a3, 
 void yw_debriefUpdate(NC_STACK_ypaworld *yw, TInputState *inpt);
 
 int sub_4C885C();
+void ChatPromptSetText(const std::string &txt);
+std::string ChatPromptGetText();
+void ChatPromptSetTitle(const std::string &txt);
+class UserData;
+// member declared via NC_STACK_ypaworld
+
 void sub_4476AC(NC_STACK_ypaworld *yw);
 
 int recorder_create_camera(NC_STACK_ypaworld *yw);

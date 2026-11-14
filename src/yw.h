@@ -597,6 +597,8 @@ public:
     NC_STACK_button *network_button;
     GuiList network_listvw;
 
+    // Fork: in-game chat dialog (MESSAGE TO ALL, OK/CANCEL buttons)
+
     int16_t netListY;
 
     int16_t netSelMode;
@@ -2278,6 +2280,7 @@ public:
     int yw_MouseFindCreationPoint(TClickBoxInf *winp);
     
     void sb_0x4c87fc(const std::string &a2, GuiBase *lstvw);
+    void ChatPromptClose(int result); // fork: close the in-game chat prompt with a result code
     void NetSendExitMsg(uint8_t normExit);
     void sub_449DE8(const std::string &a2);
     
@@ -2674,6 +2677,11 @@ public:
     bool _netExclusiveGem = false;
     
     bool _netChatSystem = false;
+
+    // Fork: in-game chat. Press T during a net game to open the input
+    // line, RETURN broadcasts the buffer as UAMSG_MESSAGE, ESC cancels.
+    bool _netChatActive = false;
+    std::string _netChatBuffer;
 
     
     enum PFID

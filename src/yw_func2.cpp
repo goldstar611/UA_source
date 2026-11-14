@@ -2107,7 +2107,7 @@ int ypaworld_func158__sub0__sub6(char a1)
 
 
 
-void UserData::ConnectToServer(std::string connStr){
+bool UserData::ConnectToServer(std::string connStr){
     fmt::printf("Connectiong to: %s\n", connStr);
     if ( p_YW->_netDriver->Connect(connStr) )
     {
@@ -2123,10 +2123,18 @@ void UserData::ConnectToServer(std::string connStr){
         {
             JoinLobbyLessGame();
         }
+
+        return true;
     }
     else
     {
         printf("Can't connect: Time OUT\n");
+
+        // Fork: show the failure in the network menu, not only the console.
+        p_YW->_GameShell->netErrorText = "Connection timed out - server unreachable";
+        p_YW->_GameShell->netErrorUntil = p_YW->_timeStamp + 10000;
+
+        return false;
     }
 }
 
@@ -3649,11 +3657,18 @@ void UserData::GameShellUiHandleInput()
 
         case NETSCREEN_ENTER_IP:
             if ( r.code == 1200 ){
+                // Clear a previous connection error so it does not linger
+                // while the user retries.
+                netErrorText.clear();
+                netErrorUntil = 0;
+
                 if ( !netName.empty() )
                 {
                     std::string ip = netName;
-                    netName = "";
-                    ConnectToServer(ip);
+                    // Keep the typed IP on a failed attempt so the user can
+                    // just press connect again to retry.
+                    if ( ConnectToServer(ip) )
+                        netName = "";
                 }
                 else
                 {
@@ -4016,8 +4031,8 @@ void UserData::GameShellUiHandleInput()
                         if ( !netName.empty() )
                         {
                             std::string ip = netName;
-                            netName = "";
-                            ConnectToServer(ip);
+                            if ( ConnectToServer(ip) )
+                                netName = "";
                         }
                         else
                         {
@@ -4337,7 +4352,13 @@ void UserData::GameShellUiHandleInput()
     case NETSCREEN_ENTER_IP:
         network_button->SetText(UIWidgets::NETWORK_MENU_WIDGET_IDS::TXT_MENU_TITLE, "Server address");
         network_button->SetText(UIWidgets::NETWORK_MENU_WIDGET_IDS::TXT_MENU_DESCR_LINE1, "Please enter server IP");
-        network_button->SetText(UIWidgets::NETWORK_MENU_WIDGET_IDS::TXT_MENU_DESCR_LINE2, " ");
+
+        if ( p_YW->_GameShell->netErrorUntil > p_YW->_timeStamp &&
+             !p_YW->_GameShell->netErrorText.empty() )
+            network_button->SetText(UIWidgets::NETWORK_MENU_WIDGET_IDS::TXT_MENU_DESCR_LINE2,
+                                    p_YW->_GameShell->netErrorText);
+        else
+            network_button->SetText(UIWidgets::NETWORK_MENU_WIDGET_IDS::TXT_MENU_DESCR_LINE2, " ");
         break;
 
     case NETSCREEN_CHOOSE_MAP:

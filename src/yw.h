@@ -631,6 +631,11 @@ public:
     std::deque<std::string> msgBuffers;
     std::string lastSender;
 
+    // Fork: transient user-facing error text shown in the network menu
+    // description area (e.g. connection timeout), cleared after a while.
+    std::string netErrorText;
+    uint32_t netErrorUntil = 0;
+
     struct TMapDescription
     {
         int id = 0;
@@ -771,7 +776,7 @@ public:
     void ExitFromLanguageMenu();
 
     void GameShellUiHandleInput();
-    void ConnectToServer(std::string connStr);
+    bool ConnectToServer(std::string connStr);
     void ShowToolTip(int id);
     void ExitFromNetworkToMain();
     void yw_NetPrintStartInfo();

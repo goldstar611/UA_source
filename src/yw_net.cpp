@@ -1026,6 +1026,197 @@ NC_STACK_ypabact * yw_netFindReorderUnit(NC_STACK_ypabact *bact_host, uint32_t I
     return NULL;
 }
 
+// Process a robo death / player departure in a running net game: kill all
+// the owner's units and their robo, clean targeting, play the per-faction
+// "have left the game" voice feedback and set the on-screen net event text.
+// Used by the UAMSG_HOSTDIE receiver path and, in fork mode, by the host
+// when a player vanishes (see RECVMSG_DESTROYPLAYER).
+static void yw_netProcessHostDie(NC_STACK_ypaworld *yw, uamessage_hostDie *hdMsg, const std::string &senderName)
+{
+    NC_STACK_ypabact *bhost = yw->yw_getHostByOwner(hdMsg->owner);
+
+    if ( !bhost )
+    {
+        // The shadow robo is created on demand when the owner's first
+        // update arrives - a player that quits while still loading may
+        // have none here. The departure announce (voice + on-screen text)
+        // does not need it; only the unit cleanup does.
+        log_netlog("\n+++ RD: no robo for owner %d - announcing departure only (%ds)\n",
+                   hdMsg->owner, yw->_timeStamp / 1000);
+    }
+    else
+    {
+        int last = bhost->getBACT_yourLastSeconds();
+        setState_msg stm;
+
+        for ( NC_STACK_ypabact* &cm : bhost->_kidList )
+        {
+            for ( NC_STACK_ypabact* &un : cm->_kidList )
+            {
+                un->CleanAttackersTarget();
+                yw->NetReleaseMissiles(un);
+
+                stm.newStatus = BACT_STATUS_CREATE;
+                stm.unsetFlags = 0;
+                stm.setFlags = 0;
+
+                un->SetStateInternal(&stm);
+                un->_status = BACT_STATUS_DEAD;
+
+                SFXEngine::SFXe.sub_424000(&un->_soundcarrier, 3);
+                SFXEngine::SFXe.startSound(&un->_soundcarrier, 7);
+
+                un->_soundFlags &= 0xFFFFFFF7;
+                un->_soundFlags |= 0x80;
+
+                un->setBACT_yourLastSeconds(last);
+                un->_status_flg |= BACT_STFLAG_DEATH1;
+            }
+
+            cm->CleanAttackersTarget();
+            yw->NetReleaseMissiles(cm);
+
+            stm.newStatus = BACT_STATUS_CREATE;
+            stm.unsetFlags = 0;
+            stm.setFlags = 0;
+
+            cm->SetStateInternal(&stm);
+            cm->_status = BACT_STATUS_DEAD;
+
+            SFXEngine::SFXe.sub_424000(&cm->_soundcarrier, 3);
+            SFXEngine::SFXe.startSound(&cm->_soundcarrier, 7);
+
+            cm->_soundFlags &= 0xFFFFFFF7;
+            cm->_soundFlags |= 0x80;
+
+            cm->setBACT_yourLastSeconds(last);
+            cm->_status_flg |= BACT_STFLAG_DEATH1;
+        }
+
+        bhost->CleanAttackersTarget();
+        yw->NetReleaseMissiles(bhost);
+
+        bhost->_status_flg |= BACT_STFLAG_DEATH1;
+    }
+
+    if ( yw->_GameShell->netPlayerOwner != hdMsg->owner )
+    {
+        int nwee = 0;
+        int wee = 0;
+        for ( NC_STACK_ypabact* &bnd : yw->_unitsList )
+        {
+            if ( bnd->_bact_type == BACT_TYPES_ROBO &&
+                    yw->_GameShell->netPlayerOwner == bnd->_owner &&
+                    bnd->_status != BACT_STATUS_DEAD )
+                wee = 1;
+
+            if ( bnd->_bact_type == BACT_TYPES_ROBO &&
+                    yw->_GameShell->netPlayerOwner != bnd->_owner &&
+                    bnd->_status != BACT_STATUS_DEAD )
+                nwee = 1;
+        }
+
+        if ( wee == 1 && nwee == 0 )
+        {
+            yw_arg159 arg159;
+            arg159.Priority = 10;
+            arg159.MsgID = 91;
+            arg159.unit = 0;
+            yw->ypaworld_func159(&arg159);
+
+            yw->_netEvent.EventType = 1;
+            yw->_netEvent.TimeStamp = yw->_timeStamp;
+        }
+        else
+        {
+            // The on-screen event names the VICTIM. Vanilla could use the
+            // packet sender name because the dying player sent its own
+            // HOSTDIE; the fork's host rebroadcast sends with the host's
+            // identity, so resolve the victim's name from netPlayers.
+            std::string victimName = yw->_GameShell->netPlayers[hdMsg->owner].Name;
+
+            if ( !hdMsg->killerOwner )
+            {
+                yw->_netEvent.EventType = 4;
+                yw->_netEvent.TimeStamp = yw->_timeStamp;
+
+                yw->_netEvent.PlayerName = victimName;
+            }
+            else if ( hdMsg->killerOwner == yw->_GameShell->netPlayerOwner )
+            {
+                yw->_netEvent.EventType = 2;
+                yw->_netEvent.TimeStamp = yw->_timeStamp;
+                yw->_netEvent.PlayerName = victimName;
+            }
+            else
+            {
+                yw->_netEvent.EventType = 3;
+                yw->_netEvent.TimeStamp = yw->_timeStamp;
+                yw->_netEvent.PlayerName = victimName;
+
+                yw->_netEvent.Player2Name = yw->_GameShell->netPlayers[hdMsg->killerOwner].Name;
+            }
+
+            yw_arg159 arg159;
+            arg159.unit = 0;
+            arg159.Priority = 50;
+            switch ( hdMsg->owner)
+            {
+            case 3:
+                arg159.MsgID = 90;
+                break;
+            case 4:
+                arg159.MsgID = 89;
+                break;
+            case 6:
+                arg159.MsgID = 88;
+                break;
+            case 1:
+                arg159.MsgID = 87;
+                break;
+            case 2:
+            case 5:
+                break;
+            }
+            yw->ypaworld_func159(&arg159);
+        }
+    }
+
+    if ( !bhost )
+        return;
+
+    if ( hdMsg->killerOwner )
+    {
+        NC_STACK_ypabact *tmp = yw->yw_getHostByOwner(hdMsg->killerOwner);
+        if ( tmp )
+            bhost->_killer = NetGetBactByID(tmp, hdMsg->killer);
+        else
+            bhost->_killer = NULL;
+    }
+
+    yw->HistoryAktKill(bhost);
+
+    if ( hdMsg->killer && hdMsg->killerOwner == yw->_userRobo->_owner )
+    {
+        NC_STACK_ypabact *nde = yw->yw_getHostByOwner(hdMsg->killerOwner);
+
+        if ( nde )
+        {
+            if ( !NetGetBactByID(nde, hdMsg->killer) )
+                log_netlog("\n+++ RD: unknown ID %d for owner %d\n", hdMsg->killer, hdMsg->killerOwner);
+        }
+        else
+        {
+            log_netlog("\n+++ RD: false owner %d for killer %d\n", hdMsg->killerOwner, hdMsg->killer);
+        }
+    }
+
+    yw_arg177 arg177;
+    arg177.field_4 = hdMsg->killerOwner;
+    arg177.bact = bhost;
+    yw->ypaworld_func177(&arg177);
+}
+
 size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *err)
 {
     uamessage_base *bMsg = (uamessage_base *)msg->data;
@@ -1990,182 +2181,30 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
         uamessage_hostDie *hdMsg = (uamessage_hostDie *)msg->data;
         szmsg = sizeof(uamessage_hostDie);
 
-        if ( yw->_GameShell->netPlayers[owner].DestroyFlags || (plr && plr->UpdateCountDown) )
+        log_netlog("+++ HDrecv: owner=%d killer=%d killerOwner=%d (%ds)\n",
+                   hdMsg->owner, hdMsg->killer, hdMsg->killerOwner,
+                   yw->_timeStamp / 1000);
+
+        if ( yw->_GameShell->netPlayers[owner].DestroyFlags && owner != hdMsg->owner )
+        {
+            // Ignore stale traffic from destroyed senders - but a HOSTDIE
+            // whose sender IS the victim (base owner == victim owner: a
+            // vanilla robo death, uads synthesis or the fork's host
+            // rebroadcast) must be processed even when the victim's slot
+            // was already flagged: the destroy notification can arrive
+            // before this message, and the victim being dead is the whole
+            // point of a HOSTDIE.
+            log_netlog("+++ HDrecv: dropped, sender owner %d has DestroyFlags\n", owner);
             break;
+        }
 
-        NC_STACK_ypabact *bhost = yw->yw_getHostByOwner(hdMsg->owner);
-
-        if ( !bhost )
+        if ( plr && plr->UpdateCountDown )
         {
-            log_netlog("\n+++ RD: Havent found robo with owner %d (%ds)\n", hdMsg->owner, yw->_timeStamp / 1000);
+            log_netlog("+++ HDrecv: dropped, local UpdateCountDown active (loading)\n");
             break;
         }
 
-        int last = bhost->getBACT_yourLastSeconds();
-        setState_msg stm;
-
-        for ( NC_STACK_ypabact* &cm : bhost->_kidList )
-        {
-            for ( NC_STACK_ypabact* &un : cm->_kidList )
-            {
-                un->CleanAttackersTarget();
-                yw->NetReleaseMissiles(un);
-
-                stm.newStatus = BACT_STATUS_CREATE;
-                stm.unsetFlags = 0;
-                stm.setFlags = 0;
-
-                un->SetStateInternal(&stm);
-                un->_status = BACT_STATUS_DEAD;
-
-                SFXEngine::SFXe.sub_424000(&un->_soundcarrier, 3);
-                SFXEngine::SFXe.startSound(&un->_soundcarrier, 7);
-
-                un->_soundFlags &= 0xFFFFFFF7;
-                un->_soundFlags |= 0x80;
-
-                un->setBACT_yourLastSeconds(last);
-                un->_status_flg |= BACT_STFLAG_DEATH1;
-            }
-
-            cm->CleanAttackersTarget();
-            yw->NetReleaseMissiles(cm);
-
-            stm.newStatus = BACT_STATUS_CREATE;
-            stm.unsetFlags = 0;
-            stm.setFlags = 0;
-
-            cm->SetStateInternal(&stm);
-            cm->_status = BACT_STATUS_DEAD;
-
-            SFXEngine::SFXe.sub_424000(&cm->_soundcarrier, 3);
-            SFXEngine::SFXe.startSound(&cm->_soundcarrier, 7);
-
-            cm->_soundFlags &= 0xFFFFFFF7;
-            cm->_soundFlags |= 0x80;
-
-            cm->setBACT_yourLastSeconds(last);
-            cm->_status_flg |= BACT_STFLAG_DEATH1;
-        }
-
-        bhost->CleanAttackersTarget();
-        yw->NetReleaseMissiles(bhost);
-
-        bhost->_status_flg |= BACT_STFLAG_DEATH1;
-
-        if ( yw->_GameShell->netPlayerOwner != bhost->_owner )
-        {
-            int nwee = 0;
-            int wee = 0;
-            for ( NC_STACK_ypabact* &bnd : yw->_unitsList )
-            {
-                if ( bnd->_bact_type == BACT_TYPES_ROBO &&
-                        yw->_GameShell->netPlayerOwner == bnd->_owner &&
-                        bnd->_status != BACT_STATUS_DEAD )
-                    wee = 1;
-
-                if ( bnd->_bact_type == BACT_TYPES_ROBO &&
-                        yw->_GameShell->netPlayerOwner != bnd->_owner &&
-                        bnd->_status != BACT_STATUS_DEAD )
-                    nwee = 1;
-            }
-
-            if ( wee == 1 && nwee == 0 )
-            {
-                yw_arg159 arg159;
-                arg159.Priority = 10;
-                arg159.MsgID = 91;
-                arg159.unit = 0;
-                yw->ypaworld_func159(&arg159);
-
-                yw->_netEvent.EventType = 1;
-                yw->_netEvent.TimeStamp = yw->_timeStamp;
-            }
-            else
-            {
-                if ( !hdMsg->killerOwner )
-                {
-                    yw->_netEvent.EventType = 4;
-                    yw->_netEvent.TimeStamp = yw->_timeStamp;
-
-                    yw->_netEvent.PlayerName = msg->senderName;
-                }
-                else if ( hdMsg->killerOwner == yw->_GameShell->netPlayerOwner )
-                {
-                    yw->_netEvent.EventType = 2;
-                    yw->_netEvent.TimeStamp = yw->_timeStamp;
-                    yw->_netEvent.PlayerName = msg->senderName;
-                }
-                else
-                {
-                    yw->_netEvent.EventType = 3;
-                    yw->_netEvent.TimeStamp = yw->_timeStamp;
-                    yw->_netEvent.PlayerName = msg->senderName;
-
-                    yw->_netEvent.Player2Name = yw->_GameShell->netPlayers[hdMsg->killerOwner].Name;
-                }
-
-                yw_arg159 arg159;
-                arg159.unit = 0;
-                arg159.Priority = 50;
-                switch ( hdMsg->owner)
-                {
-                case 3:
-                    arg159.MsgID = 90;
-                    break;
-                case 4:
-                    arg159.MsgID = 89;
-                    break;
-                case 6:
-                    arg159.MsgID = 88;
-                    break;
-                case 1:
-                    arg159.MsgID = 87;
-                    break;
-                case 2:
-                case 5:
-                    break;
-                }
-                yw->ypaworld_func159(&arg159);
-            }
-        }
-
-        if ( hdMsg->killerOwner )
-        {
-            NC_STACK_ypabact *tmp = yw->yw_getHostByOwner(hdMsg->killerOwner);
-            if ( tmp )
-                bhost->_killer = NetGetBactByID(tmp, hdMsg->killer);
-            else
-                bhost->_killer = NULL;
-        }
-        
-        yw->HistoryAktKill(bhost);
-
-        if ( hdMsg->killer && hdMsg->killerOwner == yw->_userRobo->_owner )
-        {
-            NC_STACK_ypabact *nde = yw->yw_getHostByOwner(hdMsg->killerOwner);
-
-            if ( nde )
-            {
-                //rarg134.unit = yw_netGetBactByID(nde->bact, hdMsg->killer);
-                if ( !NetGetBactByID(nde, hdMsg->killer) )
-                    log_netlog("\n+++ RD: unknown ID %d for owner %d\n", hdMsg->killer, hdMsg->killerOwner);
-            }
-            else
-            {
-                log_netlog("\n+++ RD: false owner %d for killer %d\n", hdMsg->killerOwner, hdMsg->killer);
-                //rarg134.unit = NULL;
-            }
-        }
-        else
-        {
-            //rarg134.unit = NULL;
-        }
-
-        yw_arg177 arg177;
-        arg177.field_4 = hdMsg->killerOwner;
-        arg177.bact = bhost;
-        yw->ypaworld_func177(&arg177);
+        yw_netProcessHostDie(yw, hdMsg, msg->senderName);
     }
     break;
 
@@ -2216,8 +2255,14 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
         uamessage_kick *kcMsg = (uamessage_kick *)msg->data;
         szmsg = sizeof(uamessage_kick);
 
+        log_netlog("+++ Krecv: owner=%d text=%s (%ds)\n",
+                   kcMsg->owner, kcMsg->text, yw->_timeStamp / 1000);
+
         if ( yw->_GameShell->netPlayers[owner].DestroyFlags )
+        {
+            log_netlog("+++ Krecv: dropped, sender owner %d has DestroyFlags\n", owner);
             break;
+        }
 
         yw->_GameShell->netProblemOwner = kcMsg->owner;
 
@@ -3291,6 +3336,40 @@ void yw_HandleNetMsg(NC_STACK_ypaworld *yw)
 
                     log_netlog(">>> Received a destroy player for %s at %d\n", recvMsg.senderName.c_str(), yw->_timeStamp / 1000);
 
+                    // Fork: in a running game the host announces a departed
+                    // player - the leaver does not reliably broadcast its
+                    // own robo death. Process it locally (voice + on-screen
+                    // net event text) and rebroadcast UAMSG_HOSTDIE so the
+                    // remaining clients announce too. uads sessions have
+                    // no engine host (isHost=false) and synthesize this in
+                    // the server instead, so this only fires in direct
+                    // engine games.
+                    if ( usr->isHost && plFound && !itisI && yw->_isNetGameStarted )
+                    {
+                        uint8_t depOwner = 0;
+
+                        for ( UserData::TNetPlayerData &pl : usr->netPlayers )
+                        {
+                            if ( !StriCmp(pl.Name, recvMsg.senderName) )
+                            {
+                                depOwner = pl.Owner;
+                                break;
+                            }
+                        }
+
+                        if ( depOwner && yw->yw_getHostByOwner(depOwner) )
+                        {
+                            uamessage_hostDie hdMsg;
+                            hdMsg.msgID = UAMSG_HOSTDIE;
+                            hdMsg.owner = depOwner;
+                            hdMsg.killer = 0;
+                            hdMsg.killerOwner = 0;
+
+                            yw->NetBroadcastMessage(&hdMsg, sizeof(hdMsg), true);
+                            yw_netProcessHostDie(yw, &hdMsg, recvMsg.senderName);
+                        }
+                    }
+
                     if ( !usr->HasInited && plFound)
                     {
                         for ( UserData::TNetPlayerData &pl : usr->netPlayers )
@@ -3317,7 +3396,19 @@ void yw_HandleNetMsg(NC_STACK_ypaworld *yw)
                     else
                     {
                         if ( plFound )
+                        {
                             log_netlog("    but netgame was not startet!\n");
+
+                            // Fork: announce lobby departures in the session
+                            // chat. The lobby has no other notice of a
+                            // departed player - the player list row shift
+                            // happens silently and players do not notice
+                            // someone left until the session behaves oddly.
+                            if ( !yw->_isNetGameStarted && !itisI )
+                                sub_4D0C24(yw, "SERVER",
+                                           fmt::sprintf("%s has left the game",
+                                                        recvMsg.senderName));
+                        }
                         else
                             log_netlog("    but the player doesn't exist anymore!\n");
                     }

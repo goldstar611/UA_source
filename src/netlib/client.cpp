@@ -277,6 +277,12 @@ void ZNDClient::ProcessRegularPkt(Pkt* pkt)
                 uint64_t UID = rd.readU64();
                 uint8_t tp = rd.readU8();
 
+                printf("ZNDDBG: USERLEAVE uid=%llu tp=%u users=%zu\n",
+                       (unsigned long long)UID, tp, cUsers.size());
+                for(UserInfoVect::iterator it = cUsers.begin(); it != cUsers.end(); it++)
+                    printf("ZNDDBG:   user id=%llu name=%s\n",
+                           (unsigned long long)it->ID, it->name.c_str());
+
                 for(UserInfoVect::iterator it = cUsers.begin(); it != cUsers.end(); it++)
                 {
                     if (it->ID == UID)

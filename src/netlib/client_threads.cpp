@@ -134,6 +134,9 @@ int ZNDClient::_SendThread(void *data)
                                 sendedBytes += pkt.len;
                                 SDLNet_UDP_Send(_this->sock, -1, &pkt);
 
+                                if (pkt.len > 0 && (dta->flags & PKT_FLAG_GARANT))
+                                    printf("ZNDDBG: sent GARANT seq=%u len=%d res=%u\n", dta->addr.seq, pkt.len, res);
+
                                 if (res == 1) //All data send
                                 {
                                     if ( SDL_LockMutex(_this->sendPktListMutex) == 0 )

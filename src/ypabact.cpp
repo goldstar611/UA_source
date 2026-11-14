@@ -3404,6 +3404,15 @@ size_t NC_STACK_ypabact::LaunchMissile(bact_arg79 *arg)
                 wpnMsg.targetOwner = wobj->_primT.pbact->_owner;
             }
 
+            ypa_log_out("+++ NWsend: launcher=%d id=%d type=%d tgtType=%d tgt=%d tgtOwner=%d pos=%.0f,%.0f,%.0f dir=%.2f,%.2f,%.2f parent=%d (%ds)\n",
+                        _gid, wobj->_gid, arg->weapon, wobj->_primTtype,
+                        wobj->_primTtype == BACT_TGT_TYPE_UNIT ? wpnMsg.target : 0,
+                        wobj->_primTtype == BACT_TGT_TYPE_UNIT ? wpnMsg.targetOwner : 0,
+                        arg147.pos.x, arg147.pos.y, arg147.pos.z,
+                        wpnMsg.dir.x, wpnMsg.dir.y, wpnMsg.dir.z,
+                        _parent ? _parent->_gid : 0,
+                        _world->_timeStamp / 1000);
+
             _world->NetBroadcastMessage(&wpnMsg, sizeof(wpnMsg), true);
         }
 
@@ -7897,6 +7906,7 @@ bool NC_STACK_ypabact::IsNeedsWaypoints() const
 
 void NC_STACK_ypabact::CleanAttackersTarget()
 {
+    int cleared = 0;
     for(auto it = _attackersList.begin();
         it != _attackersList.end();
         it = _attackersList.erase(it))
@@ -7906,9 +7916,12 @@ void NC_STACK_ypabact::CleanAttackersTarget()
         if ( attacker->_primTtype == BACT_TGT_TYPE_UNIT &&
              attacker->_primT.pbact == this )
         {
+            ypa_log_out("+++ ClrTgt: dead=%d attacker=%d cleared prim (%ds)\n",
+                        _gid, attacker->_gid, _world->_timeStamp / 1000);
             attacker->_primT.pbact = NULL;
             attacker->_primTtype = BACT_TGT_TYPE_NONE;
             attacker->_assess_time = 0;
+            cleared++;
         }
         
         if ( attacker->_secndTtype == BACT_TGT_TYPE_UNIT && 

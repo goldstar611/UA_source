@@ -1132,6 +1132,9 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
         szmsg = sizeof(uamessage_newVhcl);
         uamessage_newVhcl *nvMsg = (uamessage_newVhcl *)msg->data;
 
+        log_netlog("+++ NVrecv: owner=%d id=%d kind=%d parent=%d type=%d (%ds)\n",
+                   nvMsg->owner, nvMsg->id, nvMsg->kind, nvMsg->parent, nvMsg->type, yw->_timeStamp / 1000);
+
         if ( yw->_GameShell->netPlayers[owner].DestroyFlags )
             break;
 
@@ -1145,7 +1148,11 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
         NC_STACK_ypabact *bacto = yw->ypaworld_func146(&newVhcl);
 
         if ( !bacto )
+        {
+            log_netlog("+++ NVrecv: creation FAILED for owner=%d id=%d type=%d\n",
+                       nvMsg->owner, nvMsg->id, nvMsg->type);
             break;
+        }
 
         setState_msg sstate;
         sstate.newStatus = BACT_STATUS_CREATE;
@@ -1211,6 +1218,9 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
     {
         szmsg = sizeof(uamessage_destroyVhcl);
         uamessage_destroyVhcl *dvMsg = (uamessage_destroyVhcl *)msg->data;
+
+        log_netlog("+++ DVrecv: owner=%d id=%d (%ds)\n",
+                   dvMsg->owner, dvMsg->id, yw->_timeStamp / 1000);
 
         if ( yw->_GameShell->netPlayers[owner].DestroyFlags || (plr && plr->UpdateCountDown) )
             break;
@@ -1441,6 +1451,9 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
         szmsg = sizeof(uamessage_setState);
         uamessage_setState *ssMsg = (uamessage_setState *)msg->data;
 
+        log_netlog("+++ SSrecv: owner=%d id=%d newStatus=%d set=%x unset=%x (%ds)\n",
+                   ssMsg->owner, ssMsg->id, ssMsg->newStatus, ssMsg->setFlags, ssMsg->unsetFlags, yw->_timeStamp / 1000);
+
         if ( yw->_GameShell->netPlayers[owner].DestroyFlags || (plr && plr->UpdateCountDown) )
             break;
 
@@ -1470,7 +1483,17 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
     case UAMSG_VHCLDATA_I:
     {
         uamessage_vhclData *vdMsg = (uamessage_vhclData *)msg->data;
-        szmsg = msg->_data.size();
+
+        // The sender broadcasts exactly hdr.size bytes (yw_HandleNetMsg:
+        // "vhcldata->hdr.size = ((char *)&data[number]) - ((char *)vhcldata)").
+        // Consuming the rest of the datagram here silently swallowed any
+        // message that was queued AFTER the VHCLDATA flush in the same
+        // broadcast buffer (e.g. NEWVHCL for a freshly created unit) --
+        // the peer then never learned about that unit at all.
+        if ( vdMsg->hdr.size && vdMsg->hdr.size <= msg->_data.size() )
+            szmsg = vdMsg->hdr.size;
+        else
+            szmsg = msg->_data.size();
 
         if ( yw->_GameShell->netPlayers[owner].DestroyFlags || (plr && plr->UpdateCountDown) || tv481 )
             break;
@@ -1494,7 +1517,11 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
     case UAMSG_VHCLDATA_E:
     {
         uamessage_vhclData *vdMsg = (uamessage_vhclData *)msg->data;
-        szmsg = msg->_data.size();
+
+        if ( vdMsg->hdr.size && vdMsg->hdr.size <= msg->_data.size() )
+            szmsg = vdMsg->hdr.size;
+        else
+            szmsg = msg->_data.size();
 
         if ( yw->_GameShell->netPlayers[owner].DestroyFlags || (plr && plr->UpdateCountDown) || tv481 )
             break;
@@ -1519,6 +1546,10 @@ size_t yw_handleNormMsg(NC_STACK_ypaworld *yw, windp_recvMsg *msg, std::string *
     {
         szmsg = sizeof(uamessage_dead);
         uamessage_dead *ddMsg = (uamessage_dead *)msg->data;
+
+        log_netlog("+++ Drecv: owner=%d id=%d newParent=%d killer=%d killerOwner=%d classID=%d landed=%d (%ds)\n",
+                   ddMsg->owner, ddMsg->id, ddMsg->newParent, ddMsg->killer, ddMsg->killerOwner,
+                   ddMsg->classID, ddMsg->landed, yw->_timeStamp / 1000);
 
         if ( yw->_GameShell->netPlayers[owner].DestroyFlags || (plr && plr->UpdateCountDown) )
             break;

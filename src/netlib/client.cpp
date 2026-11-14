@@ -632,6 +632,8 @@ void ZNDClient::BroadcastData(void *data, uint32_t sz, uint8_t flags, uint8_t ch
     if (!data || !sz)
         return;
 
+    printf("ZNDDBG: BroadcastData sz=%u flags=%u chnl=%u\n", sz, flags, channel);
+
     RefData *rfdat = USRDataGenData(cME.ID, true, cME.sesID, data, sz);
 
     flags &= (PKT_FLAG_GARANT | PKT_FLAG_ASYNC);

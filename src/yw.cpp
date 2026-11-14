@@ -477,7 +477,21 @@ size_t NC_STACK_ypaworld::Process(base_64arg *arg)
                 if (_isNetGame && unit != _userRobo && unit->_bact_type == BACT_TYPES_ROBO)
                     unit->NetUpdate(&_updateMessage);
                 else
+                {
+                    // Ghost detector: a remote-owner unit floating in
+                    // _unitsList (no parent) gets full local AI in a net
+                    // game - it aims, fires and broadcasts NEWWEAPON on
+                    // its own, fighting the real owner's simulation.
+                    if (_isNetGame && unit != _userRobo &&
+                        unit->_owner != _userRobo->_owner &&
+                        unit->_parent == NULL &&
+                        !unit->_kidRef.IsListType(World::BLIST_CACHE))
+                        ypa_log_out("+++ GHOSTUPD: gid=%d owner=%d class=%d (%ds)\n",
+                                    unit->_gid, unit->_owner, unit->_bact_type,
+                                    _timeStamp / 1000);
+
                     unit->Update(&_updateMessage);
+                }
 
                 _updateMessage.units_count++;
             }
@@ -1236,8 +1250,16 @@ void NC_STACK_ypaworld::ypaworld_func144(NC_STACK_ypabact *bacto)
 {
     if ( bacto->_bact_type == BACT_TYPES_MISSLE )
     {
-        if ( bacto->_primTtype )
+        // LaunchMissile legitimately sets _primTtype = DRCT on direct-fire
+        // missiles (ypabact.cpp LaunchMissile, "wobj->_primTtype =
+        // BACT_TGT_TYPE_DRCT"); only an unresolved UNIT target is a real
+        // death-cache bug. Either way the target must not survive the
+        // cache - a recycled missile would inherit it.
+        if ( bacto->_primTtype == BACT_TGT_TYPE_UNIT )
             ypa_log_out("OH NO! The DEATH CACHE BUG is back!\n");
+
+        bacto->_primTtype = BACT_TGT_TYPE_NONE;
+        bacto->_primT.pbact = NULL;
     }
 
     SFXEngine::SFXe.StopCarrier(&bacto->_soundcarrier);

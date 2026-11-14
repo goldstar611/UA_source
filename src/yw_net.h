@@ -129,9 +129,12 @@ struct uamessage_setState: uamessage_base
 
 struct vhcldata
 {
-    int16_t pos_x = 0;
-    int16_t pos_y = 0;
-    int16_t pos_z = 0;
+    // 32-bit positions: the vanilla int16 fields overflowed on long maps
+    // (>~54 sectors with the /2 scale). Exact integer encoding, no scale.
+    // Fork wire-format change: both peers must run this build.
+    int32_t pos_x = 0;
+    int32_t pos_y = 0;
+    int32_t pos_z = 0;
     int16_t vp = 0;
     int8_t roll = 0;
     int8_t pitch = 0;
@@ -163,6 +166,13 @@ struct vhcldatahdr
     uint32_t diffTime = 0;
 };
 
+// Wire-format guards: these sizes are part of the protocol. The receiver
+// walk trusts uamessage_vhclData::hdr.size (see yw_handleNormMsg), so a
+// silent struct layout change would corrupt every VHCLDATA datagram.
+static_assert(sizeof(vhcldata) == 28, "vhcldata wire size changed");
+static_assert(sizeof(vhcldataE) == 56, "vhcldataE wire size changed");
+static_assert(sizeof(vhcldatahdr) == 8, "vhcldatahdr wire size changed");
+
 struct uamessage_vhclData : uamessage_base
 {
     vhcldatahdr hdr;
@@ -177,6 +187,10 @@ struct uamessage_vhclDataE : uamessage_vhclData
 {
     vhcldataE data[1024];
 };
+
+static_assert(sizeof(uamessage_vhclData) == 24, "vhclData base wire size changed");
+static_assert(sizeof(uamessage_vhclDataI) == 24 + 1024 * 28, "vhclDataI wire size changed");
+static_assert(sizeof(uamessage_vhclDataE) == 24 + 1024 * 56, "vhclDataE wire size changed");
 
 struct uamessage_dead : uamessage_base
 {

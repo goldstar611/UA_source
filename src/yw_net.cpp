@@ -230,9 +230,9 @@ void yw_netBakeVhcl(NC_STACK_ypabact *bact, uamessage_vhclData *dat, int id, int
         return;
     }
 
-    common->pos_x = (int32_t)bact->_position.x / 2;
-    common->pos_y = (int32_t)bact->_position.y / 2;
-    common->pos_z = (int32_t)bact->_position.z / 2;
+    common->pos_x = (int32_t)bact->_position.x;
+    common->pos_y = (int32_t)bact->_position.y;
+    common->pos_z = (int32_t)bact->_position.z;
 
     if ( !interpolate && extended)
     {
@@ -242,14 +242,14 @@ void yw_netBakeVhcl(NC_STACK_ypabact *bact, uamessage_vhclData *dat, int id, int
     if ( bact->getBACT_viewer() && (bact->_status_flg & BACT_STFLAG_LAND) )
     {
         float len = bact->_viewer_overeof - bact->_overeof;
-        common->pos_y += (int32_t)len / 2;
+        common->pos_y += (int32_t)len;
     }
 
     if ( bact->_bact_type == BACT_TYPES_GUN )
     {
-        common->pos_x = (int32_t)bact->_old_pos.x / 2;
-        common->pos_y = (int32_t)bact->_old_pos.y / 2;
-        common->pos_z = (int32_t)bact->_old_pos.z / 2;
+        common->pos_x = (int32_t)bact->_old_pos.x;
+        common->pos_y = (int32_t)bact->_old_pos.y;
+        common->pos_z = (int32_t)bact->_old_pos.z;
 
         common->specialinfo |= vhcldata::SI_YPAGUN;
     }
@@ -392,9 +392,9 @@ void NC_STACK_ypaworld::yw_netApplyVhclDataI(NC_STACK_ypabact *bact, uamessage_v
     if ( id < dat->hdr.number )
     {
         vec3d v49;
-        v49.x = 2 * dat->data[id].pos_x;
-        v49.y = 2 * dat->data[id].pos_y;
-        v49.z = 2 * dat->data[id].pos_z;
+        v49.x = dat->data[id].pos_x;
+        v49.y = dat->data[id].pos_y;
+        v49.z = dat->data[id].pos_z;
 
         if ( v49.x < 0.0 || v49.x > bact->_wrldSize.x || v49.z > 0.0 || v49.z < bact->_wrldSize.y )
             log_netlog(
@@ -454,9 +454,9 @@ void NC_STACK_ypaworld::yw_netApplyVhclDataE(NC_STACK_ypabact *bact, uamessage_v
         {
             bact->_old_pos = bact->_position;
 
-            bact->_position.x = 2 * dat->data[id].pos_x;
-            bact->_position.y = 2 * dat->data[id].pos_y;
-            bact->_position.z = 2 * dat->data[id].pos_z;
+            bact->_position.x = dat->data[id].pos_x;
+            bact->_position.y = dat->data[id].pos_y;
+            bact->_position.z = dat->data[id].pos_z;
 
             vec3d v73 = dat->data[id].speed;
 

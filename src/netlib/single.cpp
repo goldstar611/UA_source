@@ -118,7 +118,6 @@ void ZNDSingle::ProcessSystemPkt(Pkt* pkt)
             uint8_t namestrSz = rd.readU8();
 
             if (namestrSz == 0 || servstrSz == 0 ||
-               ((size_t)namestrSz + (size_t)servstrSz + 2) != rd.size() ||
                     servstrSz != servString.size())
             {
                 return;
@@ -132,6 +131,23 @@ void ZNDSingle::ProcessSystemPkt(Pkt* pkt)
 
             std::string nm;
             rd.readStr(nm,  namestrSz);
+
+            // Fork: optionally tolerate a trailing version string appended
+            // by fork clients ([verSz][version] after the name). See the
+            // same change in server.cpp.
+            size_t base = (size_t)namestrSz + (size_t)servstrSz + 2;
+            if (rd.size() != base)
+            {
+                if (rd.size() < base + 1)
+                    return;
+
+                uint8_t verSz = rd.readU8();
+                if (rd.size() != base + 1 + verSz)
+                    return;
+
+                std::string ver;
+                rd.readStr(ver, verSz);
+            }
 
             CorrectName(nm);
 

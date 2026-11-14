@@ -1,5 +1,11 @@
 #include "zndNet.h"
 
+// Fork: client version ident appended to the SYS_MSG_HANDSHAKE packet so
+// the dedicated server (uads) can run a strict compatibility check. The
+// vanilla engine sends nothing here; old builds are rejected by uads and
+// pointed at the fork download.
+const std::string FORK_CLIENT_VERSION = "github.com/goldstar611/UA_Source";
+
 namespace ZNDNet
 {
 
@@ -362,6 +368,11 @@ void ZNDClient::SendConnect()
     rfdata->writeU8(cME.name.size());
     rfdata->writeStr(servString);
     rfdata->writeStr(cME.name);
+    // Fork: version ident appended to the handshake - the dedicated server
+    // (uads) uses it for the strict compatibility check. Vanilla servers
+    // reject this handshake; fork servers accept both layouts.
+    rfdata->writeU8(FORK_CLIENT_VERSION.size());
+    rfdata->writeStr(FORK_CLIENT_VERSION);
 
     Send_PushData( new SendingData(cServAddress, 0, rfdata, PKT_FLAG_SYSTEM));
 }

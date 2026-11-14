@@ -336,9 +336,6 @@ size_t NC_STACK_ypaworld::Process(base_64arg *arg)
         {
             int chatState = sub_4C885C();
 
-            ypa_log_out("+++ CHATDBG: frame chatActive=%d chatState=%d lstvw2Closed=%d\n",
-                        (int)_netChatActive, chatState, (int)lstvw2.IsClosed());
-
             if ( _netChatActive && chatState == 3 )
             {
                 // Prompt is open: capture typing into the chat buffer and
@@ -349,10 +346,6 @@ size_t NC_STACK_ypaworld::Process(base_64arg *arg)
                 int keyHit = arg->field_8->KbdLastHit;
                 if ( keyHit == Input::KC_NONE && _kbdLastKeyHit != Input::KC_NONE )
                     keyHit = _kbdLastKeyHit;
-
-                if ( keyHit != Input::KC_NONE || _kbdLastKeyHit != Input::KC_NONE )
-                    ypa_log_out("+++ CHATDBG: keyHit=%d kbdLast=%d chr=%d kbdHit_inpt=%d\n",
-                                keyHit, _kbdLastKeyHit, arg->field_8->chr, arg->field_8->KbdLastHit);
 
                 if ( keyHit != Input::KC_NONE )
                 {
@@ -5235,7 +5228,6 @@ bool NC_STACK_ypaworld::OpenGameShell()
 
 void NC_STACK_ypaworld::CloseGameShell()
 {
-    ypa_log_out("+++ SHELL: CloseGameShell (confirm=%p)\n", (void*)_GameShell->confirm_button);
     if ( _GameShell->HasInited )
     {       
         if ( _GameShell->confirm_button )

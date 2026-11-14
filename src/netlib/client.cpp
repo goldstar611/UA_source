@@ -285,9 +285,6 @@ void ZNDClient::ProcessRegularPkt(Pkt* pkt)
 
                 printf("ZNDDBG: USERLEAVE uid=%llu tp=%u users=%zu\n",
                        (unsigned long long)UID, tp, cUsers.size());
-                for(UserInfoVect::iterator it = cUsers.begin(); it != cUsers.end(); it++)
-                    printf("ZNDDBG:   user id=%llu name=%s\n",
-                           (unsigned long long)it->ID, it->name.c_str());
 
                 for(UserInfoVect::iterator it = cUsers.begin(); it != cUsers.end(); it++)
                 {

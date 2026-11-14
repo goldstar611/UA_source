@@ -3938,13 +3938,18 @@ void UserData::GameShellUiHandleInput()
 
                 if ( netName.size() < v233 )
                 {
-                    if ( Input->chr > ' ' && Input->chr != '*' )
+                    // Fork: input filter - printable ASCII (0x20-0x7E) only.
+                    // '*' excluded (never wanted in names), '|' excluded (it
+                    // is the session-name field separator, "level|name|date");
+                    // control chars and high-bit chars are dropped too.
+                    if ( Input->chr >= 0x20 && Input->chr <= 0x7E &&
+                         Input->chr != '*' && Input->chr != '|' )
                     {
                         if (netNameCurPos <= (int)netName.size())
                         {
                             netName.insert(netNameCurPos, 1, Input->chr);
                             netNameCurPos++;
-                        }                           
+                        }
                     }
                 }
 

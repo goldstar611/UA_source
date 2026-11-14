@@ -66,7 +66,7 @@ enum
 
     DELAY_SESS_REQ = 5000,
 
-    DELAY_PING = 5000,
+    DELAY_PING = 2000,
 
     LATENCE_OLD_PART = 20,
 

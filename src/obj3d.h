@@ -51,14 +51,37 @@ public:
     };
 
     
-    virtual void RecalcInternal(bool kids = false) override {};
+    // Rebuild meshes from the attached ADEs when present (uattach models).
+    // Plain OBJ models (no ADEs) keep the OBJ-parsed meshes: the base
+    // implementation would clear them and rebuild nothing.
+    virtual void RecalcInternal(bool kids = false) override
+    {
+        if ( _ADES.empty() )
+            return;
+        NC_STACK_base::RecalcInternal(kids);
+    };
 
     bool LoadFromFile(const std::string &filename);
     bool LoadFromFile(FSMgr::FileHandle *file);
     
     static NC_STACK_Obj3D *LoadObj3D(const std::string &filename);
+
+    // Load a per-model asset set: parses <fname>.obj via the normal OBJ path,
+    // then - if a <fname>.uattach sidecar exists next to it - replaces the
+    // OBJ-rebuilt skeleton with the sidecar skeleton, attaches every ADE from
+    // the sidecar's standalone .ade files (with bmpanim payloads from the
+    // model's own .anm files and all textures bound from the model's own pngs,
+    // never from the shared rsrc pool) and regenerates the meshes.
+    // Without a .uattach sidecar the plain OBJ load behavior is unchanged.
+    static NC_STACK_Obj3D *LoadObjWithAttachments(const std::string &fname);
     
-    static bool ExportObj(NC_STACK_base *base, const std::string &fname);
+    // Export 'base' as Wavefront .obj + .mtl + texture pngs (named after the
+    // texture's own rsrc name, deduped within the model) + <fname>.mat.json
+    // sidecar. 'sourceFile' is recorded in the json sidecar.
+    // 'fname' must be a path usable by FSMgr/uaOpenFile (e.g. "export/KID.obj").
+    // Texture files are written next to the .obj. '.mat.json' is written via
+    // FSMgr::iDir::openFileAlloc directly (no >3 char extension truncation).
+    static bool ExportObj(NC_STACK_base *base, const std::string &fname, const std::string &sourceFile = std::string());
 
 private:
     bool ParseObj(FSMgr::FileHandle *fil);

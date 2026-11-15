@@ -46,7 +46,10 @@ NC_STACK_base *ProxyLoadBase(const std::string &fname)
     if ( !StriCmp(name, "3ds") )
         return NC_STACK_3ds::Load3DS(fname);
     else if ( !StriCmp(name, "obj") )
-        return NC_STACK_Obj3D::LoadObj3D(fname);
+        // Full game path: per-model .obj with .uattach sidecar reconstruction
+        // (falls back internally to the plain OBJ parse when there is no
+        // sidecar, so plain .obj files keep loading exactly as before)
+        return NC_STACK_Obj3D::LoadObjWithAttachments(fname);
     
     return NC_STACK_base::LoadBaseFromFile(fname);
 }

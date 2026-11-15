@@ -11,6 +11,11 @@ public:
     
     static bool SavePng(ResBitmap *bmp, const std::string &fname);
 
+    // Load an image file by explicit path (no name-based rsrc resolution) into
+    // a standalone ResBitmap. Used by the per-model asset pipeline, which must
+    // never fetch textures from the shared rsrc pool by name.
+    static ResBitmap *LoadImageFromPath(const std::string &path, bool convertColor);
+
     NC_STACK_image();
     virtual ~NC_STACK_image();
     

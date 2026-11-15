@@ -182,10 +182,10 @@ bool NC_STACK_image::SavePng(ResBitmap *bitm, const std::string &fname)
 {
     if (!bitm)
         return false;
-    
+
     if (!bitm->swTex)
         return false;
-    
+
     FSMgr::FileHandle *fil = uaOpenFileAlloc(fname, "wb");
     if (!fil || !fil->OK())
         return false;
@@ -195,4 +195,54 @@ bool NC_STACK_image::SavePng(ResBitmap *bitm, const std::string &fname)
         return false;
 
     return IMG_SavePNG_RW(bitm->swTex, rwops, 1) == 0;
+}
+
+ResBitmap *NC_STACK_image::LoadImageFromPath(const std::string &path, bool convertColor)
+{
+    FSMgr::FileHandle *fil = FSMgr::iDir::openFileAlloc(path, "rb");
+    if (!fil || !fil->OK())
+        return NULL;
+
+    SDL_RWops *rwops = MyCustomRWop(fil);
+    if (!rwops)
+    {
+        delete fil;
+        return NULL;
+    }
+
+    SDL_Surface *loaded = IMG_Load_RW(rwops, 1);
+
+    if (!loaded)
+    {
+        delete fil;
+        return NULL;
+    }
+
+    ResBitmap *bitm = new ResBitmap;
+
+    bitm->width = loaded->w;
+    bitm->height = loaded->h;
+    bitm->swTex = loaded;
+
+    if (convertColor)
+    {
+        SDL_Surface *screenFmt = GFX::Engine.ConvertToScreenFormat(loaded);
+        if (screenFmt)
+        {
+            SDL_FreeSurface(bitm->swTex);
+            bitm->swTex = screenFmt;
+        }
+    }
+    else if (loaded->format->palette)
+    {
+        bitm->palette = new UA_PALETTE;
+
+        if (bitm->palette)
+        {
+            for (int i = 0; i < loaded->format->palette->ncolors; i++)
+                (*bitm->palette)[i] = loaded->format->palette->colors[i];
+        }
+    }
+
+    return bitm;
 }

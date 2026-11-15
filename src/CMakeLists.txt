@@ -170,6 +170,43 @@ target_include_directories(UA_source PUBLIC
 										${OPENAL_INCLUDE_DIR}
 										${LUA_INCLUDE_DIR})
 
+# Console tool: same engine sources, but with its own main()
+set(UA_EXPORT_SOURCES ${SOURCES})
+list(REMOVE_ITEM UA_EXPORT_SOURCES main.cpp)
+add_executable(ua_export ${UA_EXPORT_SOURCES} ua_export.cpp)
+
+
+
+target_link_libraries(ua_export ${SDL2_LIBRARIES}
+							${SDL2_IMAGE_LIBRARIES}
+							${SDL2_TTF_LIBRARIES}
+							${SDL2_NET_LIBRARIES}
+							${OPENGL_LIBRARIES}
+							${VORBISFILE_LIBRARIES}
+							${OPENAL_LIBRARY}
+							${LUA_LIBRARIES}
+							FFmpeg::avcodec
+							FFmpeg::avformat
+							FFmpeg::avutil
+							FFmpeg::swscale
+							FFmpeg::swresample)
+
+target_include_directories(ua_export PUBLIC
+										${PROJECT_SOURCE_DIR} 
+										${SDL2_INCLUDE_DIRS} 
+										${SDL2_IMAGE_INCLUDE_DIRS} 
+										${SDL2_TTF_INCLUDE_DIRS}
+										${SDL2_NET_INCLUDE_DIRS}
+										${OpenGL_INCLUDE_DIR}
+										${VORBISFILE_INCLUDE_DIRS}
+										${OPENAL_INCLUDE_DIR}
+										${LUA_INCLUDE_DIR})
+
+target_compile_options(ua_export PUBLIC "-g" "-O0")
+
+
+
+
 if(CMAKE_BUILD_TYPE MATCHES [dD][eE][bB][uU][gG])
    target_compile_options(UA_source PUBLIC "-g" "-O0")
    

@@ -418,11 +418,17 @@ int get_level_numb(const std::string &filename)
     else if ( buf.size() == 6 )
         buf.resize(3);
 
-    int v10 = std::stoi(buf);
-    if ( v10 < 1 || v10 >= 256 )
+    // Tolerate non-level junk files (dotfiles, AppleDouble "._*" metadata
+    // created by macOS copies, editor backups) instead of throwing.
+    int v10 = -1;
+    if ( !buf.empty() && isdigit((unsigned char)buf[0]) )
     {
-        v10 = -1;
-        ypa_log_out("Invalid level num [valid: 0..127] for %s.\n", filename.c_str());
+        v10 = std::stoi(buf);
+        if ( v10 < 1 || v10 >= 256 )
+        {
+            v10 = -1;
+            ypa_log_out("Invalid level num [valid: 0..127] for %s.\n", filename.c_str());
+        }
     }
     return v10;
 }
@@ -503,6 +509,16 @@ int NC_STACK_ypaworld::sb_0x4e1a88(bool multiplayer)
         {
             if ( strcmp(fsnode->getName().c_str(), ".") && strcmp(fsnode->getName().c_str(), "..") )
             {
+                // Skip dotfiles / AppleDouble metadata - not levels, not an error.
+                if ( fsnode->getName()[0] == '.' )
+                    continue;
+
+                if ( get_level_numb(fsnode->getName()) == -1 )
+                {
+                    ypa_log_out("Skipping non-level file [%s%s]\n", path.c_str(), fsnode->getName().c_str());
+                    continue;
+                }
+
                 if ( sb_0x4e1a88__sub0(fsnode->getName(), multiplayer) )
                 {
                     ypa_log_out("Scanning [%s%s] .. ok.\n", path.c_str(), fsnode->getName().c_str());

@@ -2,3 +2,10 @@
 *.o
 .vscode
 src/UA_source
+# build dirs / tool outputs
+build/
+build-trixie/
+.DS_Store
+export/
+render/
+rpng_*.log

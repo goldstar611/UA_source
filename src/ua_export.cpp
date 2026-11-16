@@ -2965,19 +2965,13 @@ static bool RPInitGL()
 
     GFX::Engine.Init();
 
-    // Calibrated raster state for lego assets: their visible faces wind
-    // CLOCKWISE in window coords under this engine's projection (y-flip in
-    // UAFrustum, matrix.h:668) -- with the engine's default CCW front every
-    // lego face is back-face culled and renders empty. Equivalent to the
-    // original D3D front-face convention the assets were authored for.
-    // UA_EXPORT_CCWFRONT=1 keeps the engine default, UA_EXPORT_NOCULL=1
-    // disables culling entirely (debug).
+    // Culling state = the engine's own (CCW front, cull on, gfx.cpp:355).
+    // The earlier glFrontFace(GL_CW) "calibration" was compensating for a
+    // wrong-side view basis; with the corrected basis the engine default
+    // renders every model correctly. UA_EXPORT_NOCULL=1 disables culling
+    // entirely (debug).
     if ( !getenv("UA_EXPORT_NOCULL") )
-    {
         glEnable(GL_CULL_FACE);
-        if ( !getenv("UA_EXPORT_CCWFRONT") )
-            glFrontFace(GL_CW);
-    }
 
     if ( !GFX::Engine.LoadPalette("palette/standard.pal") )
         fprintf(stderr, "RPNG: warning: could not load palette/standard.pal\n");
@@ -3138,6 +3132,13 @@ static void RPPrintStats(const char *name, const std::vector<uint8_t> &buf, int 
 // View space: +Z is forward (clip flags + UAFrustum use z>0 as visible), and
 // the projection maps ndc_y = -y_view / z, so world-up must map to NEGATIVE
 // view y to appear at the top of the screen.
+// Live-toggleable orientation state (viewer).
+// USER-VERIFIED default combo (golden look on MT_POWR2/VP_NFOX):
+// unflipped basis + CW front faces + culling on + camera raised (steep pitch).
+static int g_viewFlipY = 0;     // 1 = mirrored up-row basis (F toggles)
+static int g_cwFront = 1;       // 1 = glFrontFace(GL_CW) (W toggles)
+static int g_noCull = 0;        // 1 = culling disabled (C toggles)
+
 static void RPSetViewLookAt(TF::TForm3D &view, const vec3d &camPos, const vec3d &target)
 {
     vec3d f = target - camPos;
@@ -3150,14 +3151,18 @@ static void RPSetViewLookAt(TF::TForm3D &view, const vec3d &camPos, const vec3d 
     double ul = u.length();
     u.x /= ul; u.y /= ul; u.z /= ul;
 
-    // right = forward x up' ; view basis rows: [right, -up', forward]
+    // right = forward x up' ; view basis rows: [right, ±up', forward]
     vec3d r = f * u;
 
-    // view basis rows: [right, -up', forward]; SclRot IS the standard
+    // view basis rows: [right, ±up', forward]; SclRot IS the standard
     // world->view rotation (column convention, base.cpp:495-500 composes
     // view->CalcSclRot * translate(Δ) so v_view = SclRot * (v + Δ))
+    // The engine's projection mirrors Y on the way to window coords
+    // (UAFrustum row2 = -1, matrix.h:668). Basis up-row sign is
+    // live-toggleable (viewer key F / UA_EXPORT_FLIPY / --flipy).
+    float us = g_viewFlipY ? 1.0f : -1.0f;
     mat3x3 m( r.x,  r.y,  r.z,
-             -u.x, -u.y, -u.z,
+             us * u.x, us * u.y, us * u.z,
               f.x,  f.y,  f.z );
 
     view.SclRot = m;
@@ -3547,18 +3552,386 @@ static int RunExport(NC_STACK_base *rootBase, const std::string &sourceFile, con
     return (exported == total && attachOK == attachTotal && poolOK) ? 0 : 1;
 }
 
+
+// ---------------------------------------------------------------------------
+// Task 9: --view <NAME> - interactive single-model viewer
+//
+//   ua_export --view <NAME> [--set N] [--gamepath <workdir>] [--blob <SET.BAS>]
+//
+// Opens a real 640x480 windowed window, loads one model by NAME (converted
+// game path "rsrc:objects/<NAME>.obj" with the uattach loader, or the
+// original blob kid with --blob), and renders it through the real engine
+// frame pipeline. Orbit camera: mouse drag / arrow keys rotate, mouse wheel
+// zooms, R resets, ESC or Q quits. Animations run (globTime advances).
+// ---------------------------------------------------------------------------
+static bool RunAlphaProbe(const std::string &pngPath)
+{
+    // debug: load a png through the engine's image loader and report
+    // where the transparency (tRNS / colorkey / palette alpha) survives
+    ResBitmap *bmp = NC_STACK_image::LoadImageFromPath(pngPath, true);
+    if (!bmp || !bmp->swTex)
+    {
+        fprintf(stderr, "APROBE: cannot load %s\n", pngPath.c_str());
+        return false;
+    }
+    SDL_Surface *s = bmp->swTex;
+    printf("APROBE %s: %dx%d fmt=%s\n", pngPath.c_str(), s->w, s->h,
+           SDL_GetPixelFormatName(s->format->format));
+    if (s->format->palette)
+    {
+        const SDL_Color &c0 = s->format->palette->colors[0];
+        printf("APROBE   palette entry0 = (%d,%d,%d,%d)\n", c0.r, c0.g, c0.b, c0.a);
+        int ntr = 0;
+        for (int i = 0; i < s->format->palette->ncolors; i++)
+            if (s->format->palette->colors[i].a != 255) ntr++;
+        printf("APROBE   non-opaque palette entries: %d\n", ntr);
+    }
+    if (SDL_MUSTLOCK(s)) SDL_LockSurface(s);
+    const uint8_t *px = (const uint8_t *)s->pixels;
+    int bpp = s->format->BytesPerPixel;
+    const uint8_t *p00 = px;
+    printf("APROBE   pixel(0,0) bytes:");
+    for (int i = 0; i < bpp; i++) printf(" %02x", p00[i]);
+    Uint32 ckey = 0;
+    printf("\nAPROBE   colorkey set: %d\n", SDL_GetColorKey(s, &ckey) == 0);
+    if (SDL_MUSTLOCK(s)) SDL_UnlockSurface(s);
+    return true;
+}
+
+static bool RunView(const std::string &name, const std::string &blobPath, int setNum)
+{
+    if ( name == "@probe" )
+        return RunAlphaProbe(blobPath);
+
+    // env fallbacks for the orientation state (CLI flags take precedence
+    // because they are applied later in main)
+    if ( getenv("UA_EXPORT_FLIPY") ) g_viewFlipY = 1;
+    if ( getenv("UA_EXPORT_CWFRONT") ) g_cwFront = 1;
+    if ( getenv("UA_EXPORT_NOCULL") ) g_noCull = 1;
+
+    // real window: do NOT force a dummy/offscreen video driver
+    if ( !getenv("UA_EXPORT_VIDEO") )
+        unsetenv("SDL_VIDEODRIVER");
+    unsetenv("SDL_AUDIODRIVER");
+
+    System::IniConf::ReadFromNucleusIni();
+    bool gfxVbo = System::IniConf::GfxVBO.Get<bool>();
+
+    System::Init(!gfxVbo);
+
+    SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+    if (!ctx || !SDL_GL_GetCurrentWindow())
+    {
+        fprintf(stderr, "VIEW: no GL context (%s)\n", SDL_GetError());
+        return false;
+    }
+
+    GFX::Engine.Init();
+
+    // Culling state is live-toggleable (viewer keys W/C; also CLI/env)
+    if ( !g_noCull )
+        glEnable(GL_CULL_FACE);
+    glFrontFace(g_cwFront ? GL_CW : GL_CCW);
+
+    Common::Env.SetPrefix("data", "data");
+    Common::Env.SetPrefix("rsrc", fmt::sprintf("data:set%d", setNum));
+
+    RegisterClasses();
+
+    if ( !GFX::Engine.LoadPalette("palette/standard.pal") )
+        fprintf(stderr, "VIEW: warning: could not load palette/standard.pal\n");
+
+    TF::Engine.Init();
+
+    NC_STACK_base *model = NULL;
+
+    if ( !blobPath.empty() )
+    {
+        // mount the blob's directory (absolute paths outside the FSMgr
+        // base tree don't resolve - same approach as --verify3's origblob)
+        char fbResolved[8192];
+        if ( !realpath(blobPath.c_str(), fbResolved) )
+        {
+            fprintf(stderr, "VIEW: blob '%s' does not exist\n", blobPath.c_str());
+            return false;
+        }
+
+        std::string blobDir = DirName(fbResolved);
+        std::string blobName = BaseName(fbResolved);
+
+        FSMgr::iDir *froot = FSMgr::iDir::GetRoot();
+        froot->addNode(new FSMgr::iDir("viewblob", blobDir));
+        FSMgr::iDir::replacePath("viewblob", blobDir);
+
+        NC_STACK_base *rootBase = NC_STACK_base::LoadBaseFromFile("viewblob/" + blobName);
+        if ( !rootBase )
+        {
+            fprintf(stderr, "VIEW: cannot load blob '%s'\n", blobPath.c_str());
+            return false;
+        }
+
+        for (NC_STACK_base *group : rootBase->GetKidList())
+        {
+            for (NC_STACK_base *kid : group->GetKidList())
+            {
+                if ( StriCmp(kid->getName(), name) == 0 && !kid->Meshes.empty() )
+                    model = kid;
+            }
+        }
+
+        if ( !model )
+        {
+            fprintf(stderr, "VIEW: model '%s' not found (or empty) in blob\n", name.c_str());
+            rootBase->Delete();
+            return false;
+        }
+        printf("VIEW: loaded blob kid '%s'\n", name.c_str());
+    }
+    else
+    {
+        model = Utils::ProxyLoadBase(fmt::sprintf("rsrc:objects/%s.obj", name));
+        if ( !model )
+        {
+            fprintf(stderr, "VIEW: cannot load 'rsrc:objects/%s.obj' (converted assets not found? run from the openua-obj dir or pass --gamepath)\n", name.c_str());
+            return false;
+        }
+        if ( model->Meshes.empty() )
+        {
+            fprintf(stderr, "VIEW: model '%s' has no meshes\n", name.c_str());
+            model->Delete();
+            return false;
+        }
+        printf("VIEW: loaded converted model '%s'\n", name.c_str());
+    }
+
+    model->MakeVBO();
+
+    // bounding box -> place the model center at the world origin
+    vec3d bmin( 1e9,  1e9,  1e9);
+    vec3d bmax(-1e9, -1e9, -1e9);
+    for (const GFX::TMesh &m : model->Meshes)
+    {
+        bmin.x = MMIN(bmin.x, m.BoundBox.Min.x);
+        bmin.y = MMIN(bmin.y, m.BoundBox.Min.y);
+        bmin.z = MMIN(bmin.z, m.BoundBox.Min.z);
+        bmax.x = MMAX(bmax.x, m.BoundBox.Max.x);
+        bmax.y = MMAX(bmax.y, m.BoundBox.Max.y);
+        bmax.z = MMAX(bmax.z, m.BoundBox.Max.z);
+    }
+    vec3d center = (bmin + bmax) * 0.5;
+    float radius = (bmax - bmin).length() * 0.5f;
+    if (radius < 1.0f)
+        radius = 1.0f;
+
+    const vec3d modelPos = vec3d(0.0, 0.0, 0.0) - center;
+
+    // orbit camera state
+    float dist   = radius * 2.0f;
+    float yaw    = 0.6f;
+    float pitch  = 1.45f;   // camera raised, pointing down (verified golden)
+    if ( const char *pe = getenv("UA_EXPORT_PITCH") )
+        pitch = atof(pe);
+    if ( const char *ye = getenv("UA_EXPORT_YAW") )
+        yaw = atof(ye);
+    const float pitchMax = 1.45f;
+
+    static TF::TForm3D view;
+    TF::Engine.SetViewPoint(&view);
+
+    baseRender_msg arg;
+    arg.frameTime = 16;
+    arg.globTime  = 1000;
+    arg.minZ = 1.0f;
+    arg.maxZ = 3500.0f;
+    arg.flags = 0;
+
+    printf("\nVIEW controls: mouse-drag / arrows = orbit, wheel = zoom,\n"
+           "               PgUp/PgDn = pitch, R = reset, ESC or Q = quit\n"
+           "model: %s  bbox=%.0fx%.0fx%.0f\n\n",
+           name.c_str(),
+           bmax.x - bmin.x, bmax.y - bmin.y, bmax.z - bmin.z);
+    fflush(stdout);
+
+    bool dragging = false;
+    bool quit = false;
+    uint32_t lastTicks = SDL_GetTicks();
+
+    while ( !quit )
+    {
+        SDL_Event ev;
+        while ( SDL_PollEvent(&ev) )
+        {
+            switch ( ev.type )
+            {
+            case SDL_QUIT:
+                quit = true;
+                break;
+
+            case SDL_WINDOWEVENT:
+                if ( ev.window.event == SDL_WINDOWEVENT_CLOSE )
+                    quit = true;
+                break;
+
+            case SDL_MOUSEBUTTONDOWN:
+                if ( ev.button.button == SDL_BUTTON_LEFT )
+                    dragging = true;
+                break;
+
+            case SDL_MOUSEBUTTONUP:
+                if ( ev.button.button == SDL_BUTTON_LEFT )
+                    dragging = false;
+                break;
+
+            case SDL_MOUSEMOTION:
+                if ( dragging )
+                {
+                    yaw   += ev.motion.xrel * 0.008f;
+                    pitch += ev.motion.yrel * 0.008f;
+                }
+                break;
+
+            case SDL_MOUSEWHEEL:
+                dist *= (ev.wheel.y > 0) ? 0.85f : 1.18f;
+                break;
+
+            case SDL_KEYDOWN:
+                switch ( ev.key.keysym.sym )
+                {
+                case SDLK_LEFT:  yaw   -= 0.15f; break;
+                case SDLK_RIGHT: yaw   += 0.15f; break;
+                case SDLK_UP:    pitch += 0.12f; break;
+                case SDLK_DOWN:  pitch -= 0.12f; break;
+                case SDLK_PAGEUP:   dist *= 0.85f; break;
+                case SDLK_PAGEDOWN: dist *= 1.18f; break;
+                case SDLK_r:
+                    dist = radius * 2.0f; yaw = 0.6f; pitch = 1.45f;
+                    break;
+                case SDLK_f:
+                    g_viewFlipY = !g_viewFlipY;
+                    printf("VIEW: flipY=%d (F)\n", g_viewFlipY);
+                    break;
+                case SDLK_w:
+                    g_cwFront = !g_cwFront;
+                    glFrontFace(g_cwFront ? GL_CW : GL_CCW);
+                    printf("VIEW: cwFront=%d (W)\n", g_cwFront);
+                    break;
+                case SDLK_c:
+                    g_noCull = !g_noCull;
+                    if ( g_noCull )
+                        glDisable(GL_CULL_FACE);
+                    else
+                        glEnable(GL_CULL_FACE);
+                    printf("VIEW: noCull=%d (C)\n", g_noCull);
+                    break;
+                case SDLK_ESCAPE:
+                case SDLK_q:
+                    quit = true;
+                    break;
+                default:
+                    break;
+                }
+                break;
+
+            default:
+                break;
+            }
+        }
+
+        if ( pitch >  pitchMax ) pitch =  pitchMax;
+        if ( pitch < -pitchMax ) pitch = -pitchMax;
+        float dmin = radius * 0.3f;
+        float dmax = radius * 30.0f;
+        if ( dist < dmin ) dist = dmin;
+        if ( dist > dmax ) dist = dmax;
+
+        vec3d camPos( dist * cosf(pitch) * sinf(yaw),
+                      dist * sinf(pitch),
+                      dist * cosf(pitch) * cosf(yaw) );
+
+        RPSetViewLookAt(view, camPos, vec3d(0.0, 0.0, 0.0));
+
+        arg.globTime += 16;
+        arg.maxZ = dist + radius * 2.0f + 500.0f;
+
+        GFX::Engine.BeginFrame();
+
+        model->SetStatic(true);
+        model->SetPosition(modelPos);
+        model->Render(&arg, NULL);
+
+        GFX::Engine.BeginScene();
+        GFX::Engine.Rasterize();
+        GFX::Engine.EndScene();
+
+        // debug: UA_EXPORT_SNAPSHOT=n saves a PNG after n frames and exits
+        {
+            static int snapTick = 0;
+            const char *snapEnv = getenv("UA_EXPORT_SNAPSHOT");
+            if ( snapEnv && *snapEnv )
+            {
+                int snapN = atoi(snapEnv);
+                if ( ++snapTick >= snapN )
+                {
+                    FSMgr::iDir *froot = FSMgr::iDir::GetRoot();
+                    if ( !FSMgr::iDir::findNode("viewshot") )
+                    {
+                        froot->addNode(new FSMgr::iDir("viewshot", "viewshots"));
+                        FSMgr::iDir::replacePath("viewshot", "viewshots");
+                    }
+                    MakeDirPath("viewshots");
+
+                    Common::Point res = System::GetResolution();
+                    std::vector<uint8_t> pix((size_t)res.x * res.y * 4);
+                    glPixelStorei(GL_PACK_ALIGNMENT, 1);
+                    glReadPixels(0, 0, res.x, res.y, GL_RGBA, GL_UNSIGNED_BYTE, pix.data());
+                    RPSavePng(pix, res.x, res.y, fmt::sprintf("viewshot/%s.png", name));
+                    printf("VIEW: snapshot saved after %d frames\n", snapTick);
+                    quit = true;
+                }
+            }
+        }
+
+        if ( !quit )
+            System::Flip();
+
+        // ~60 FPS pacing
+        uint32_t now = SDL_GetTicks();
+        if ( now - lastTicks < 15 )
+            SDL_Delay(15 - (now - lastTicks));
+        lastTicks = SDL_GetTicks();
+    }
+
+    if ( blobPath.empty() )
+        model->Delete();
+
+    printf("VIEW: done\n");
+    return true;
+}
+
 int main(int argc, char *argv[])
 {
     // Must be set before any SDL usage so the tool works headless.
     // Override with UA_EXPORT_VIDEO (e.g. "offscreen" for real GL rendering).
-    const char *videoEnv = getenv("UA_EXPORT_VIDEO");
-    setenv("SDL_VIDEODRIVER", (videoEnv && *videoEnv) ? videoEnv : "dummy", 1);
-    setenv("SDL_AUDIODRIVER", "dummy", 1);
+    // --view mode: leave the driver alone (real window) - handled in RunView.
+    bool wantView = false;
+    for (int i = 1; i < argc; ++i)
+        if ( !strcmp(argv[i], "--view") )
+            wantView = true;
+
+    if ( !wantView )
+    {
+        const char *videoEnv = getenv("UA_EXPORT_VIDEO");
+        setenv("SDL_VIDEODRIVER", (videoEnv && *videoEnv) ? videoEnv : "dummy", 1);
+        setenv("SDL_AUDIODRIVER", "dummy", 1);
+    }
 
     std::string filePath;
     std::string outDir;
     std::string only;
     std::string gamePath;
+    std::string viewName;
+    std::string blobPath;
+    int setNum = 1;
     bool listOnly = false;
     bool verify = false;
     bool verify2 = false;
@@ -3583,6 +3956,39 @@ int main(int argc, char *argv[])
             renderdump = true;
         else if ( arg == "--renderpng" )
             renderpng = true;
+        else if ( arg == "--view" )
+        {
+            if ( i + 1 >= argc )
+            {
+                fprintf(stderr, "ua_export: --view requires a model name argument\n");
+                return 1;
+            }
+            viewName = argv[++i];
+        }
+        else if ( arg == "--set" )
+        {
+            if ( i + 1 >= argc )
+            {
+                fprintf(stderr, "ua_export: --set requires a set number argument\n");
+                return 1;
+            }
+            setNum = atoi(argv[++i]);
+        }
+        else if ( arg == "--flipy" )
+            g_viewFlipY = 1;
+        else if ( arg == "--cwfront" )
+            g_cwFront = 1;
+        else if ( arg == "--nocull" )
+            g_noCull = 1;
+        else if ( arg == "--blob" )
+        {
+            if ( i + 1 >= argc )
+            {
+                fprintf(stderr, "ua_export: --blob requires a SET.BAS path argument\n");
+                return 1;
+            }
+            blobPath = argv[++i];
+        }
         else if ( arg == "--models" )
         {
             if ( i + 1 >= argc )
@@ -3623,6 +4029,34 @@ int main(int argc, char *argv[])
             fprintf(stderr, "ua_export: ignoring unknown option '%s'\n", arg.c_str());
         else if ( filePath.empty() )
             filePath = arg;
+    }
+
+    if ( viewName == "__alphaprobe" )
+    {
+        // internal: ua_export --alphaprobe handled via --view __alphaprobe <path hack>
+    }
+
+    if ( wantView )
+    {
+        if ( viewName.empty() )
+        {
+            fprintf(stderr, "ua_export: --view requires a model name\n");
+            return 1;
+        }
+
+        std::string gp = gamePath;
+        if ( gp.empty() )
+            gp = ".";   // run from inside the converted working dir
+
+        char gpResolved[8192];
+        if ( !realpath(gp.c_str(), gpResolved) )
+        {
+            fprintf(stderr, "ua_export: gamepath '%s' does not exist\n", gp.c_str());
+            return 1;
+        }
+        FSMgr::iDir::setBaseDir(gpResolved);
+
+        return RunView(viewName, blobPath, setNum) ? 0 : 2;
     }
 
     if ( filePath.empty() )

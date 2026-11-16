@@ -547,6 +547,9 @@ size_t NC_STACK_bmpanim::rsrc_func66(rsrc_func66_arg *sv)
 
 void NC_STACK_bmpanim::SetTime(int32_t timeStamp, int32_t frameTime)
 {
+    if ( !_pData || _pData->FrameData.empty() )
+        return;
+
     if ( frameTime == -1 )
     {
         _curFrame += _frmAdd;
@@ -614,6 +617,9 @@ void NC_STACK_bmpanim::setBANM_animType(int newType)
 
 ResBitmap * NC_STACK_bmpanim::GetBitmap(int frameid)
 {
+    if ( !_pData || _pData->FrameData.empty() )
+        return NULL;
+
     if (frameid == -1)
         return _pData->FrameData[_curFrame].pBitmap->GetBitmap();
     
@@ -622,6 +628,10 @@ ResBitmap * NC_STACK_bmpanim::GetBitmap(int frameid)
 
 std::vector<tUtV> &NC_STACK_bmpanim::GetOutline(int frameid /* = -1 */)
 {
+    static std::vector<tUtV> dummy;
+    if ( !_pData || _pData->FrameData.empty() )
+        return dummy;
+
     if (frameid == -1)
         return *(_pData->FrameData[_curFrame].pTexCoords);
     
@@ -655,6 +665,9 @@ void NC_STACK_bmpanim::PrepareTexture( bool force )
 
 uint32_t NC_STACK_bmpanim::GetFramesCount() const 
 { 
+    if ( !_pData )
+        return 0;
+
     return _pData->FrameData.size();
 }
 

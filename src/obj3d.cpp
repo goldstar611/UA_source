@@ -1161,6 +1161,17 @@ if (--node->ref_cnt <= 0)
     // created for every call: the caller (ResBmpAnm) takes ownership of it
     // and deletes it in its destructor, so the same sheet must never be
     // shared between two ANM payloads.
+    // resolve an FSMgr tree vpath to a disk path (absolute paths pass
+    // through ApplyPrefix unchanged, so ProxyLoadImage can open them
+    // directly without any prefix/mount games)
+    std::string UAtDiskPath(const std::string &vpath)
+    {
+        FSMgr::iNode *n = FSMgr::iDir::findNode(vpath);
+        if (n)
+            return n->getPath();
+        return vpath;
+    }
+    
     NC_STACK_bitmap *UAtGetSheetBitmap(UAtCtx *ctx, const std::string &sheetName)
     {
         // resolve the png file: sidecar map first, then pool naming
@@ -1171,17 +1182,19 @@ if (--node->ref_cnt <= 0)
         else
             pngFile = UAtBaseName(sheetName) + ".png";
         
+        // 1) the model's own directory (per-model copies live here),
+        // opened by disk path so no mount/prefix resolution is involved
         NC_STACK_bitmap *bm = Utils::ProxyLoadImage( {
-            {NC_STACK_rsrc::RSRC_ATT_NAME, std::string("modelassets/") + pngFile},
+            {NC_STACK_rsrc::RSRC_ATT_NAME, UAtDiskPath(UAtJoin(ctx->dir, pngFile))},
             {NC_STACK_rsrc::RSRC_ATT_TRYSHARED, (int32_t)2},
             {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}} );
         
         if (!bm)
         {
-            // not a per-model sheet -> shared pool png (like the engine's
-            // by-name loads, which resolve through "rsrc:rsrcpool/<name>")
+            // 2) shared pool png (plain name lives in SetN/rsrcpool)
+            std::string plain = UAtBaseName(sheetName) + ".png";
             bm = Utils::ProxyLoadImage( {
-                {NC_STACK_rsrc::RSRC_ATT_NAME, std::string("rsrcpool/") + pngFile},
+                {NC_STACK_rsrc::RSRC_ATT_NAME, std::string("rsrcpool/") + plain},
                 {NC_STACK_rsrc::RSRC_ATT_TRYSHARED, (int32_t)2},
                 {NC_STACK_bitmap::BMD_ATT_CONVCOLOR, (int32_t)1}} );
         }
